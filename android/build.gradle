@@ -35,6 +35,22 @@ subprojects {
     afterEvaluate { project ->
         if (project.hasProperty("android")) {
             project.android {
+                // ✅ AGP 8 FIX 1: Automatically inject namespace for older libraries like async-storage
+                if (namespace == null) {
+                    def manifestFile = file("src/main/AndroidManifest.xml")
+                    if (manifestFile.exists()) {
+                        def parsedManifest = new XmlParser().parse(manifestFile)
+                        namespace = parsedManifest.@package
+                    } else {
+                        namespace = project.group
+                    }
+                }
+
+                // ✅ AGP 8 FIX 2: Force BuildConfig generation for gesture-handler and others
+                buildFeatures {
+                    buildConfig true
+                }
+
                 compileOptions {
                     sourceCompatibility JavaVersion.VERSION_17
                     targetCompatibility JavaVersion.VERSION_17
@@ -43,7 +59,7 @@ subprojects {
         }
     }
 
-    // ✅ NEW: Force DataStore resolution across all modules
+    // ✅ Force DataStore resolution across all modules for Firebase
     project.configurations.all {
         resolutionStrategy.eachDependency { details ->
             if (details.requested.group == 'androidx.datastore') {
