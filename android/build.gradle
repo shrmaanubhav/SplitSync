@@ -5,6 +5,8 @@ buildscript {
         compileSdkVersion = 34
         targetSdkVersion = 34
         ndkVersion = "23.1.7779620"
+        // ✅ UPDATED: Modern Kotlin version required by the latest React Native libraries
+        kotlinVersion = "1.9.24" 
     }
 
     repositories {
@@ -16,6 +18,9 @@ buildscript {
         classpath("com.android.tools.build:gradle:8.1.1")
         classpath("com.facebook.react:react-native-gradle-plugin")
         classpath("com.google.gms:google-services:4.3.15")
+        
+        // ✅ UPDATED: Linked to the variable above so it never mismatches again
+        classpath("org.jetbrains.kotlin:kotlin-gradle-plugin:$kotlinVersion")
     }
 }
 
@@ -25,9 +30,18 @@ allprojects {
         mavenCentral()
     }
 
-    // ✅ Force Java 17 for all modules (fix Firebase error)
+    // ✅ Explicitly set ALL Java compatibility flags to 17
     tasks.withType(JavaCompile).configureEach {
+        sourceCompatibility = JavaVersion.VERSION_17
+        targetCompatibility = JavaVersion.VERSION_17
         options.release = 17
+    }
+
+    // ✅ Ensure Kotlin matches perfectly
+    tasks.withType(org.jetbrains.kotlin.gradle.tasks.KotlinCompile).configureEach {
+        kotlinOptions {
+            jvmTarget = "17"
+        }
     }
 }
 
@@ -35,18 +49,33 @@ subprojects {
     afterEvaluate { project ->
         if (project.hasProperty("android")) {
             project.android {
-                // ✅ AGP 8 FIX 1: Automatically inject namespace for older libraries like async-storage
+                // AGP 8 FIX: Force namespace for libraries that still use old 'package' attribute
                 if (namespace == null) {
-                    def manifestFile = file("src/main/AndroidManifest.xml")
-                    if (manifestFile.exists()) {
-                        def parsedManifest = new XmlParser().parse(manifestFile)
-                        namespace = parsedManifest.@package
-                    } else {
+                    try {
+                        def manifestFile = file("src/main/AndroidManifest.xml")
+                        if (manifestFile.exists()) {
+                            def parsedManifest = new XmlParser().parse(manifestFile)
+                            def packageName = parsedManifest.@package
+                            if (packageName != null && !packageName.isEmpty()) {
+                                namespace = packageName
+                            } else {
+                                namespace = project.group
+                            }
+                        } else {
+                            namespace = project.group
+                        }
+                    } catch (Exception e) {
                         namespace = project.group
                     }
                 }
 
-                // ✅ AGP 8 FIX 2: Force BuildConfig generation for gesture-handler and others
+                // Fix the specific "package attribute not supported" error
+                sourceSets {
+                    main {
+                        manifest.srcFile 'src/main/AndroidManifest.xml'
+                    }
+                }
+
                 buildFeatures {
                     buildConfig true
                 }
@@ -59,7 +88,7 @@ subprojects {
         }
     }
 
-    // ✅ Force DataStore resolution across all modules for Firebase
+    // Force DataStore resolution
     project.configurations.all {
         resolutionStrategy.eachDependency { details ->
             if (details.requested.group == 'androidx.datastore') {

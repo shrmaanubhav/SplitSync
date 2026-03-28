@@ -1,6 +1,6 @@
 apply plugin: "com.android.application"
 apply plugin: "com.facebook.react"
-apply plugin: "com.google.gms.google-services"
+apply plugin: "com.google.gms.google-services" // ✅ Firebase Plugin
 
 project.ext.react = [
     enableHermes: false
@@ -23,12 +23,10 @@ android {
         versionName "1.0"
     }
 
-    // Required for AGP 8
     buildFeatures {
         buildConfig true
     }
 
-    // Required for Firebase (Java 17)
     compileOptions {
         sourceCompatibility JavaVersion.VERSION_17
         targetCompatibility JavaVersion.VERSION_17
@@ -58,6 +56,15 @@ android {
 dependencies {
     implementation("com.facebook.react:react-android")
 
+    // ✅ FIREBASE & AUTH SDKS
+    implementation platform('com.google.firebase:firebase-bom:33.1.0')
+    implementation 'com.google.firebase:firebase-auth'
+    implementation 'com.google.firebase:firebase-analytics'
+    
+    // ✅ GOOGLE PLAY SERVICES (For SMS Auto-retrieval and Device Check)
+    implementation 'com.google.android.gms:play-services-auth:21.2.0'
+    implementation 'com.google.android.gms:play-services-auth-api-phone:18.1.0'
+
     debugImplementation("com.facebook.flipper:flipper:${FLIPPER_VERSION}")
     debugImplementation("com.facebook.flipper:flipper-network-plugin:${FLIPPER_VERSION}") {
         exclude group: 'com.squareup.okhttp3', module: 'okhttp'
@@ -70,7 +77,6 @@ dependencies {
         implementation jscFlavor
     }
     
-    // ✅ NEW: Use 'api' instead of 'implementation' and add the core library
     api 'androidx.datastore:datastore-preferences:1.0.0'
     api 'androidx.datastore:datastore-preferences-core:1.0.0'
 }
