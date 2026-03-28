@@ -275,7 +275,7 @@ const FloatingTabBar: React.FC<BottomTabBarProps> = ({
                             name={
                               isFocused
                                 ? 'currency-usd'
-                                : 'currency-usd-outline'
+                                : 'currency-usd'
                             }
                             size={26}
                             color={
