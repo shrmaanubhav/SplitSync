@@ -9,7 +9,6 @@ import {
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { StyleSheet } from 'react-native';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 
 // Screens
 import LoginScreen from './src/screens/Login';
@@ -39,7 +38,7 @@ import { SelectionProvider } from './src/contexts/SelectionContext';
 import { ExpenseCategory } from './src/data/categories';
 
 // ==============================
-// ROOT STACK TYPES (FIXED)
+// ROOT STACK TYPES
 // ==============================
 export type RootStackParamList = {
   Main: undefined;
@@ -61,7 +60,7 @@ export type RootStackParamList = {
 };
 
 // ==============================
-// TAB TYPES (ADDED)
+// TAB TYPES
 // ==============================
 type TabParamList = {
   Dashboard: undefined;
@@ -107,21 +106,8 @@ function MainTabs() {
 // APP
 // ==============================
 export default function App() {
-  const { isAuthenticated, setIsAuthenticated, darkMode } = useStore();
+  const { isAuthenticated, darkMode } = useStore();
   const themeColors = getThemeColors(darkMode);
-
-  React.useEffect(() => {
-    const checkAuthStatus = async () => {
-      try {
-        const token = await AsyncStorage.getItem('token');
-        if (token) setIsAuthenticated(true);
-      } catch (error) {
-        console.error('Error checking auth status:', error);
-      }
-    };
-
-    checkAuthStatus();
-  }, [setIsAuthenticated]);
 
   const CustomLightTheme: Theme = {
     ...DefaultTheme,
@@ -167,49 +153,41 @@ export default function App() {
                   component={MainTabs}
                   options={{ headerShown: false }}
                 />
-
                 <Stack.Screen
                   name="GroupDetail"
                   component={GroupDetailScreen}
                   options={{ title: 'Group Details' }}
                 />
-
                 <Stack.Screen
                   name="Settings"
                   component={SettingsScreen}
                   options={{ title: 'Settings' }}
                 />
-
                 <Stack.Screen
                   name="Friends"
                   component={FriendsScreen}
                   options={{ title: 'Friends' }}
                 />
-
                 <Stack.Screen
                   name="EditProfile"
                   component={EditProfileScreen}
                   options={{ title: 'Edit Profile' }}
                 />
-
                 <Stack.Screen
                   name="AddExpense"
                   component={AddExpenseScreen}
                   options={{ title: 'Add Expense' }}
                 />
-
                 <Stack.Screen
                   name="CategorySelector"
                   component={CategorySelectorScreen}
                   options={{ title: 'Select Category' }}
                 />
-
                 <Stack.Screen
                   name="CreateGroup"
                   component={CreateGroupScreen}
                   options={{ title: 'Create Group' }}
                 />
-
                 <Stack.Screen
                   name="SelectPeople"
                   component={SelectPeopleScreen}
@@ -237,7 +215,6 @@ export default function App() {
   );
 }
 
-// ==============================
 const styles = StyleSheet.create({
   container: {
     flex: 1,
