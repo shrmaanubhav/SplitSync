@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import firestore from '@react-native-firebase/firestore';
 import {
   View,
   Text,
@@ -11,7 +12,7 @@ import {
 import { useNavigation } from '@react-navigation/native';
 import Button from '../components/Button';
 import MemberSelector from '../components/MemberSelector';
-import { groupService } from '../services/group.service';
+// import { groupService } from '../services/group.service';
 import { contactsService } from '../services/contacts.service';
 import { useStore } from '../store/useStore';
 import { getCurrentTheme } from '../services/theme.service';
@@ -61,35 +62,31 @@ const CreateGroupScreen = () => {
 
   const handleCreateGroup = async () => {
     if (!name) {
-      Alert.alert('Error', 'Please enter a group name');
+      Alert.alert('Error', 'Enter group name');
       return;
     }
-
     setLoading(true);
     try {
-      // Create group data - include current user as admin but not as regular member
-      // The backend will automatically add the creator as both admin and member
-      const groupData = {
+      const user = useStore.getState().user;
+      await firestore().collection('groups').add({
         name,
         description,
-        members: selectedMembers, // Only include selected members, not the creator
-      };
-
-      await groupService.createGroup(groupData);
-
-      Alert.alert('Success', 'Group created successfully', [
+        members: [user?._id, ...selectedMembers],
+        createdBy: user?._id,
+        createdAt: Date.now(),
+      });
+      Alert.alert('Success', 'Group created', [
         { text: 'OK', onPress: () => navigation.goBack() },
       ]);
-    } catch (error) {
-      console.error('Error creating group:', error);
+    } catch (e) {
+      console.error(e);
       Alert.alert('Error', 'Failed to create group');
     } finally {
       setLoading(false);
     }
   };
-
   const theme = getCurrentTheme();
-
+  
   if (initializing) {
     return (
       <Screen>

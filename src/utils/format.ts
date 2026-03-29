@@ -1,29 +1,35 @@
-// Utility Functions
-// Simplified implementation to avoid dependency issues
+// Utility Functions (Firebase-safe, no backend dependencies)
 
-import { currencyService } from '../services/currency.service';
+// ---------- CURRENCY ----------
 
-// Format currency
-export const formatCurrency = (amount: number, currency?: string): string => {
-  // Use provided currency or get from service
-  const currencyCode = currency || currencyService.getCurrentCurrency();
-  return currencyService.formatAmount(amount, currencyCode);
+export const formatCurrency = (
+  amount: number,
+  currency: string = 'INR'
+): string => {
+  try {
+    return new Intl.NumberFormat('en-IN', {
+      style: 'currency',
+      currency,
+    }).format(amount);
+  } catch {
+    return `₹${amount.toFixed(2)}`;
+  }
 };
 
-// Format date
-export const formatDate = (dateString: string): string => {
+// ---------- DATE ----------
+
+export const formatDate = (dateString: string | number): string => {
   const date = new Date(dateString);
-  return date.toLocaleDateString('en-US', {
+  return date.toLocaleDateString('en-IN', {
     year: 'numeric',
     month: 'short',
     day: 'numeric',
   });
 };
 
-// Format date and time
-export const formatDateTime = (dateString: string): string => {
+export const formatDateTime = (dateString: string | number): string => {
   const date = new Date(dateString);
-  return date.toLocaleString('en-US', {
+  return date.toLocaleString('en-IN', {
     year: 'numeric',
     month: 'short',
     day: 'numeric',
@@ -32,41 +38,42 @@ export const formatDateTime = (dateString: string): string => {
   });
 };
 
-// Capitalize first letter
-export const capitalizeFirstLetter = (string: string): string => {
-  return string.charAt(0).toUpperCase() + string.slice(1);
+// ---------- STRING ----------
+
+export const capitalizeFirstLetter = (str: string): string => {
+  return str.charAt(0).toUpperCase() + str.slice(1);
 };
 
-// Truncate text
 export const truncateText = (text: string, maxLength: number = 20): string => {
   if (text.length <= maxLength) return text;
   return text.substring(0, maxLength) + '...';
 };
 
-// Generate random ID
+// ---------- ID ----------
+
 export const generateId = (): string => {
-  return (
-    Math.random().toString(36).substring(2, 15) +
-    Math.random().toString(36).substring(2, 15)
-  );
+  return Math.random().toString(36).substring(2, 10);
 };
 
-// Format number
+// ---------- NUMBER ----------
+
 export const formatNumber = (num: number): string => {
-  return num.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+  return num.toLocaleString('en-IN');
 };
 
-// Format percentage
 export const formatPercentage = (num: number): string => {
   return `${num.toFixed(2)}%`;
 };
 
-// Format phone number
+// ---------- PHONE ----------
+
 export const formatPhoneNumber = (phone: string): string => {
-  return phone.replace(/(\d{3})(\d{3})(\d{4})/, '($1) $2-$3');
+  if (!phone) return '';
+  return phone.replace(/(\d{5})(\d{5})/, '$1 $2'); // Indian format
 };
 
-// Format email
+// ---------- EMAIL ----------
+
 export const formatEmail = (email: string): string => {
   return email.toLowerCase();
 };

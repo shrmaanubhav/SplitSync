@@ -1,6 +1,3 @@
-// Expenses Screen
-// Simplified implementation to avoid dependency issues
-
 import React, { useState, useEffect } from 'react';
 import {
   View,
@@ -12,21 +9,31 @@ import {
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import Button from '../components/Button';
-import { expenseService } from '../services/expense.service';
 import { formatCurrency, formatDate } from '../utils/format';
-import { currencyService } from '../services/currency.service';
 import { getCurrentTheme } from '../services/theme.service';
 import Screen from '../components/Screen';
 import { getFloatingButtonPosition } from '../utils/layout';
+import firestore from '@react-native-firebase/firestore';
 
 const ExpensesScreen = () => {
   const [expenses, setExpenses] = useState<any[]>([]);
   const [refreshing, setRefreshing] = useState(false);
   const navigation = useNavigation();
+  const theme = getCurrentTheme();
 
+  // ---------- FETCH ----------
   const fetchExpenses = async () => {
     try {
-      const data = await expenseService.getAllExpenses();
+      const snap = await firestore()
+        .collection('expenses')
+        .orderBy('createdAt', 'desc')
+        .get();
+
+      const data = snap.docs.map(doc => ({
+        _id: doc.id,
+        ...doc.data(),
+      }));
+
       setExpenses(data);
     } catch (error) {
       console.error('Error fetching expenses:', error);
@@ -43,14 +50,13 @@ const ExpensesScreen = () => {
     fetchExpenses();
   }, []);
 
+  // ---------- NAV ----------
   const handleAddExpense = () => {
-    // Navigate to add expense screen
     // @ts-ignore
     navigation.navigate('AddExpense', { group: null });
   };
 
-  const theme = getCurrentTheme();
-
+  // ---------- UI ----------
   const renderExpenseItem = ({ item }: { item: any }) => (
     <TouchableOpacity
       style={[styles.expenseItem, { backgroundColor: theme.cardBackground }]}
@@ -63,12 +69,13 @@ const ExpensesScreen = () => {
           {formatCurrency(item.amount)}
         </Text>
       </View>
+
       <View style={styles.expenseFooter}>
         <Text style={[styles.expenseGroup, { color: theme.textSecondary }]}>
-          {item.group?.name || 'Unknown group'}
+          {item.groupId || 'No group'}
         </Text>
         <Text style={[styles.expenseDate, { color: theme.textSecondary }]}>
-          {formatDate(item.date)}
+          {formatDate(item.createdAt)}
         </Text>
       </View>
     </TouchableOpacity>
@@ -94,7 +101,7 @@ const ExpensesScreen = () => {
               No expenses yet
             </Text>
             <Text style={[styles.emptySubtext, { color: theme.textSecondary }]}>
-              Add your first expense to get started
+              Add your first expense
             </Text>
           </View>
         }
@@ -109,10 +116,8 @@ const ExpensesScreen = () => {
   );
 };
 
+// ---------- STYLES ----------
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-  },
   listContainer: {
     padding: 20,
   },
@@ -120,19 +125,11 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     padding: 15,
     marginBottom: 15,
-    shadowColor: '#000',
-    shadowOffset: {
-      width: 0,
-      height: 2,
-    },
-    shadowOpacity: 0.1,
-    shadowRadius: 3.84,
-    elevation: 5,
+    elevation: 3,
   },
   expenseHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    alignItems: 'center',
     marginBottom: 10,
   },
   expenseDescription: {
@@ -155,7 +152,7 @@ const styles = StyleSheet.create({
   },
   fab: {
     position: 'absolute',
-    bottom: getFloatingButtonPosition(20), // Use utility function for proper positioning
+    bottom: getFloatingButtonPosition(20),
     right: 20,
     borderRadius: 28,
     paddingHorizontal: 20,
@@ -163,18 +160,16 @@ const styles = StyleSheet.create({
   },
   emptyContainer: {
     flex: 1,
-    justifyContent: 'center',
     alignItems: 'center',
     paddingTop: 50,
   },
   emptyText: {
     fontSize: 20,
     fontWeight: 'bold',
-    marginBottom: 10,
   },
   emptySubtext: {
     fontSize: 16,
-    textAlign: 'center',
+    marginTop: 5,
   },
 });
 

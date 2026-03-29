@@ -1,72 +1,60 @@
-// Edit Profile Screen
-
 import React, { useState } from 'react';
 import {
   View,
   Text,
-  TextInput,
   StyleSheet,
   Alert,
   ScrollView,
+  TextInput,
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
-import { FormProvider, useForm } from 'react-hook-form';
+import { FormProvider, useForm, SubmitHandler } from 'react-hook-form';
 import * as yup from 'yup';
 import { yupResolver } from '@hookform/resolvers/yup';
+import firestore from '@react-native-firebase/firestore';
+
 import Button from '../components/Button';
 import { useStore } from '../store/useStore';
 import Screen from '../components/Screen';
 import Avatar from '../components/Avatar';
-import FormInputWrapper from '../components/FormInputWrapper'; // Import FormInputWrapper
+import FormInputWrapper from '../components/FormInputWrapper';
 import { getCurrentTheme } from '../services/theme.service';
-import api from '../services/api';
 
+// ---------- TYPES ----------
 type RootStackParamList = {
   Profile: undefined;
 };
 
-type EditProfileScreenNavigationProp = NativeStackNavigationProp<
+type NavigationPropType = NativeStackNavigationProp<
   RootStackParamList,
   'Profile'
 >;
 
-// Define the form data type
 interface ProfileFormData {
   name: string;
-  bio?: string | null;
-  email?: string | null;
+  bio: string | null;
 }
 
-// Create validation schema with yup
-const profileSchema = yup.object().shape({
-  name: yup
-    .string()
-    .required('Name is required')
-    .min(2, 'Name must be at least 2 characters')
-    .max(50, 'Name must be less than 50 characters'),
-  bio: yup
-    .string()
-    .max(500, 'Bio must be less than 500 characters')
-    .optional()
-    .nullable(),
-  email: yup.string().email('Please enter a valid email').optional().nullable(),
+// ---------- VALIDATION ----------
+const schema: yup.ObjectSchema<ProfileFormData> = yup.object({
+  name: yup.string().required().min(2).max(50),
+  bio: yup.string().nullable().default(''),
 });
 
+// ---------- COMPONENT ----------
 const EditProfileScreen = () => {
-  const navigation = useNavigation<EditProfileScreenNavigationProp>();
+  const navigation = useNavigation<NavigationPropType>();
   const { user, setUser } = useStore();
   const [loading, setLoading] = useState(false);
 
   const theme = getCurrentTheme();
 
-  // Initialize react-hook-form with yup resolver
-  const methods = useForm({
-    resolver: yupResolver(profileSchema),
+  const methods = useForm<ProfileFormData>({
+    resolver: yupResolver(schema),
     defaultValues: {
       name: user?.name || '',
-      bio: user?.bio || '',
-      email: user?.email || '',
+      bio: user?.bio ?? '',
     },
   });
 
@@ -76,47 +64,44 @@ const EditProfileScreen = () => {
     watch,
   } = methods;
 
-  // Watch bio field to show character count
-  const bioValue = watch('bio', user?.bio || '');
+  const bioValue = watch('bio', '');
 
-  const onSubmit = async (data: {
-    name: string;
-    bio?: string | null;
-    email?: string | null;
-  }) => {
+  // ---------- SUBMIT ----------
+  const onSubmit: SubmitHandler<ProfileFormData> = async (data) => {
+    if (!user?._id) return;
+
     setLoading(true);
-    try {
-      // Update user profile
-      const response = await api.put(`/users/${user?.id}/profile`, {
-        name: data.name.trim(),
-        bio: data.bio || undefined, // Send undefined to clear bio if empty
-        email: data.email || undefined, // Send undefined to clear email if empty
-      });
 
-      // Update user in store
+    try {
+      await firestore()
+        .collection('users')
+        .doc(user._id)
+        .update({
+          name: data.name.trim(),
+          bio: data.bio || '',
+        });
+
       setUser({
         ...user,
-        name: response.data.name,
-        bio: response.data.bio,
-        email: response.data.email,
+        name: data.name,
+        bio: data.bio || '',
       } as any);
 
-      Alert.alert('Success', 'Profile updated successfully');
+      Alert.alert('Success', 'Profile updated');
       navigation.goBack();
-    } catch (error: any) {
-      console.error('Update profile error:', error);
-      Alert.alert(
-        'Error',
-        error.response?.data?.message || 'Failed to update profile'
-      );
+    } catch (e) {
+      console.error(e);
+      Alert.alert('Error', 'Failed to update profile');
     } finally {
       setLoading(false);
     }
   };
 
+  // ---------- UI ----------
   return (
     <Screen>
       <ScrollView contentContainerStyle={styles.container}>
+        {/* Avatar */}
         <View style={styles.avatarContainer}>
           <FormInputWrapper
             name="name"
@@ -131,6 +116,7 @@ const EditProfileScreen = () => {
 
         <FormProvider {...methods}>
           <View style={styles.form}>
+            {/* NAME */}
             <View style={styles.inputGroup}>
               <Text style={[styles.label, { color: theme.textPrimary }]}>
                 Name
@@ -145,7 +131,7 @@ const EditProfileScreen = () => {
                     borderColor: theme.border,
                   },
                 ]}
-                placeholder="Enter your name"
+                placeholder="Enter name"
                 placeholderTextColor={theme.textSecondary}
               />
               {errors.name && (
@@ -155,6 +141,7 @@ const EditProfileScreen = () => {
               )}
             </View>
 
+            {/* BIO */}
             <View style={styles.inputGroup}>
               <Text style={[styles.label, { color: theme.textPrimary }]}>
                 Bio
@@ -169,15 +156,11 @@ const EditProfileScreen = () => {
                     borderColor: theme.border,
                   },
                 ]}
-                placeholder="Tell us about yourself"
-                placeholderTextColor={theme.textSecondary}
+                placeholder="About you"
                 multiline
-                numberOfLines={4}
                 maxLength={500}
               />
-              <Text
-                style={[styles.characterCount, { color: theme.textSecondary }]}
-              >
+              <Text style={{ color: theme.textSecondary }}>
                 {(bioValue || '').length}/500
               </Text>
               {errors.bio && (
@@ -187,35 +170,10 @@ const EditProfileScreen = () => {
               )}
             </View>
 
+            {/* PHONE */}
             <View style={styles.inputGroup}>
               <Text style={[styles.label, { color: theme.textPrimary }]}>
-                Email (Optional)
-              </Text>
-              <FormInputWrapper
-                name="email"
-                style={[
-                  styles.input,
-                  {
-                    backgroundColor: theme.cardBackground,
-                    color: theme.textPrimary,
-                    borderColor: theme.border,
-                  },
-                ]}
-                placeholder="Enter your email"
-                placeholderTextColor={theme.textSecondary}
-                keyboardType="email-address"
-                autoCapitalize="none"
-              />
-              {errors.email && (
-                <Text style={[styles.errorText, { color: theme.danger }]}>
-                  {errors.email.message}
-                </Text>
-              )}
-            </View>
-
-            <View style={styles.inputGroup}>
-              <Text style={[styles.label, { color: theme.textPrimary }]}>
-                Phone Number
+                Phone
               </Text>
               <TextInput
                 style={[
@@ -228,21 +186,20 @@ const EditProfileScreen = () => {
                 ]}
                 value={user?.phoneNumber || ''}
                 editable={false}
-                selectTextOnFocus={false}
               />
-              <Text style={[styles.phoneNote, { color: theme.textSecondary }]}>
+              <Text style={{ color: theme.textSecondary, fontSize: 12 }}>
                 Phone number cannot be changed
               </Text>
             </View>
           </View>
         </FormProvider>
 
+        {/* BUTTONS */}
         <View style={styles.buttonContainer}>
           <Button
-            title="Save Changes"
+            title="Save"
             onPress={handleSubmit(onSubmit)}
             loading={loading}
-            disabled={loading}
           />
           <Button
             title="Cancel"
@@ -256,6 +213,7 @@ const EditProfileScreen = () => {
   );
 };
 
+// ---------- STYLES ----------
 const styles = StyleSheet.create({
   container: {
     flexGrow: 1,
@@ -286,26 +244,12 @@ const styles = StyleSheet.create({
     padding: 15,
     fontSize: 16,
   },
-  inputError: {
-    borderWidth: 2,
-  },
   textArea: {
     borderWidth: 1,
     borderRadius: 8,
     padding: 15,
-    fontSize: 16,
-    textAlignVertical: 'top',
     height: 100,
-  },
-  characterCount: {
-    fontSize: 12,
-    textAlign: 'right',
-    marginTop: 5,
-  },
-  phoneNote: {
-    fontSize: 12,
-    fontStyle: 'italic',
-    marginTop: 5,
+    textAlignVertical: 'top',
   },
   errorText: {
     fontSize: 14,

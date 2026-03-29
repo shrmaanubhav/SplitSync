@@ -5,53 +5,71 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 let confirmationResult: FirebaseAuthTypes.ConfirmationResult | null = null;
 
 export const authService = {
-  // --- Firebase Phone Auth ---
+  // ---------- PHONE AUTH ----------
+
   async sendOTP(phoneNumber: string) {
     try {
-      const formatted = phoneNumber.startsWith('+') ? phoneNumber : `+91${phoneNumber}`;
+      const formatted = phoneNumber.startsWith('+')
+        ? phoneNumber
+        : `+91${phoneNumber.replace(/^0+/, '')}`;
+
       confirmationResult = await auth().signInWithPhoneNumber(formatted);
       return true;
     } catch (error: any) {
-      throw new Error(error.message || 'Failed to send SMS');
+      throw new Error(error.message || 'Failed to send OTP');
     }
   },
 
   async verifyOTP(otp: string) {
     try {
-      if (!confirmationResult) throw new Error('No pending OTP request');
+      if (!confirmationResult) {
+        throw new Error('No OTP request found');
+      }
+
       const credential = await confirmationResult.confirm(otp);
-      return credential?.user;
-    } catch (error: any) {
-      throw new Error('Invalid OTP code');
+
+      if (!credential || !credential.user) {
+        throw new Error('OTP verification failed');
+      }
+
+      return credential.user;
+    } catch {
+      throw new Error('Invalid OTP');
     }
   },
 
-  // --- Secure PIN Management ---
-  async savePin(pin: string) {
-    // We store 'app_pin' as the username and the actual digits as the password
-    await Keychain.setGenericPassword('app_pin', pin);
-    await AsyncStorage.setItem('softOnboardingCompleted', 'true');
+  // ---------- AUTH STATE ----------
+
+  getCurrentUser() {
+    return auth().currentUser;
   },
 
-  async getSavedPin() {
-    const credentials = await Keychain.getGenericPassword();
-    return credentials ? credentials.password : null;
-  },
-
-  async hasOnboarded() {
-    const status = await AsyncStorage.getItem('softOnboardingCompleted');
-    return status === 'true';
+  onAuthStateChanged(
+    callback: (user: FirebaseAuthTypes.User | null) => void
+  ) {
+    return auth().onAuthStateChanged(callback);
   },
 
   async logout() {
     await auth().signOut();
-    // We DON'T clear the keychain here so the device remembers the PIN 
-    // for the next login, but we clear the onboarding flag if you want a full reset.
   },
 
-  getCurrentUser() {
-    return auth().currentUser;
-  }
+  // ---------- PIN ----------
+
+  async savePin(pin: string) {
+    await Keychain.setGenericPassword('app_pin', pin);
+    await AsyncStorage.setItem('onboardingComplete', 'true');
+  },
+
+  async getSavedPin() {
+    const creds = await Keychain.getGenericPassword();
+    return creds ? creds.password : null;
+  },
+
+  async hasOnboarded() {
+    const val = await AsyncStorage.getItem('onboardingComplete');
+    return val === 'true';
+  },
 };
 
 export default authService;

@@ -61,11 +61,11 @@ const ProfileScreen = () => {
               {user?.name || 'User'}
             </Text>
 
-            {user?.email ? (
+            {/* {user?.email ? (
               <Text style={[styles.userEmail, { color: theme.textSecondary }]}>
                 {user.email}
               </Text>
-            ) : null}
+            ) : null} */}
 
             <Text style={[styles.userPhone, { color: theme.textSecondary }]}>
               {user?.phoneNumber || 'No phone number'}

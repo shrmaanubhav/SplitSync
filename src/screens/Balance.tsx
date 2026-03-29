@@ -1,4 +1,6 @@
 import React, { useState, useEffect } from 'react';
+import firestore from '@react-native-firebase/firestore';
+import { useStore } from '../store/useStore';
 import {
   View,
   Text,
@@ -9,7 +11,7 @@ import {
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import Button from '../components/Button';
-import { balanceService } from '../services/balance.service';
+// import { balanceService } from '../services/balance.service';
 import { formatCurrency } from '../utils/format';
 import { getCurrentTheme } from '../services/theme.service';
 import Screen from '../components/Screen';
@@ -22,10 +24,32 @@ const BalancesScreen = () => {
 
   const fetchBalances = async () => {
     try {
-      const data = await balanceService.getBalances();
-      setBalances(data);
-    } catch (error) {
-      console.error('Error fetching balances:', error);
+      const user = useStore.getState().user;
+      const snap = await firestore().collection('expenses').get();
+
+      let totalOwed = 0;
+      let totalDue = 0;
+
+      snap.docs.forEach(doc => {
+        const exp = doc.data();
+        exp.splits.forEach((s: any) => {
+          if (s.userId === user?._id) {
+            totalDue += s.amount;
+          }
+        });
+
+        if (exp.paidBy === user?._id) {
+          totalOwed += exp.amount;
+        }
+      });
+
+      const overallBalance = totalOwed - totalDue;
+      setBalances({
+        overallBalance,
+        balances: [], // group-level later
+      });
+    } catch (e) {
+      console.error(e);
     }
   };
 

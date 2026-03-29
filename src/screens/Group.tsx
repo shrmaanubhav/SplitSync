@@ -9,14 +9,12 @@ import {
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import Button from '../components/Button';
-import { groupService } from '../services/group.service';
 import { formatCurrency } from '../utils/format';
 import { useStore } from '../store/useStore';
-import { currencyService } from '../services/currency.service';
 import { getCurrentTheme } from '../services/theme.service';
 import Screen from '../components/Screen';
 import { getFloatingButtonPosition } from '../utils/layout';
-import { analyticsService } from '../services/analytics.service';
+import firestore from '@react-native-firebase/firestore';
 
 const GroupsScreen = () => {
   const [groups, setGroups] = useState<any[]>([]);
@@ -26,29 +24,44 @@ const GroupsScreen = () => {
   const { setCurrentGroup, user } = useStore();
 
   const fetchGroups = async () => {
+    if (!user?._id) return;
+
     try {
-      const data = await groupService.getAllGroups();
+      const snap = await firestore()
+        .collection('groups')
+        .where('members', 'array-contains', user._id)
+        .get();
+
+      const data = snap.docs.map(doc => ({
+        _id: doc.id,
+        ...doc.data(),
+      }));
+
       setGroups(data);
 
-      // Fetch analytics for each group
-      const analyticsData: any = {};
+      // simple analytics
+      const analytics: any = {};
+
       for (const group of data) {
-        try {
-          const analytics = await analyticsService.getGroupAnalytics(group._id);
-          analyticsData[group._id] = analytics;
-        } catch (error) {
-          console.error(
-            `Error fetching analytics for group ${group._id}:`,
-            error
-          );
-          analyticsData[group._id] = { totalExpenses: 0 };
-        }
+        const expSnap = await firestore()
+          .collection('expenses')
+          .where('groupId', '==', group._id)
+          .get();
+
+        let total = 0;
+        expSnap.docs.forEach(d => {
+          total += d.data().amount || 0;
+        });
+
+        analytics[group._id] = { totalExpenses: total };
       }
-      setGroupAnalytics(analyticsData);
-    } catch (error) {
-      console.error('Error fetching groups:', error);
+
+      setGroupAnalytics(analytics);
+    } catch (e) {
+      console.error(e);
     }
   };
+
 
   const onRefresh = async () => {
     setRefreshing(true);
@@ -75,10 +88,10 @@ const GroupsScreen = () => {
     let userBalance = 0;
     if (
       analytics.personSpending &&
-      user?.id &&
-      analytics.personSpending[user.id]
+      user?._id &&
+      analytics.personSpending[user._id]
     ) {
-      userBalance = analytics.personSpending[user.id].netBalance || 0;
+      userBalance = analytics.personSpending[user._id].netBalance || 0;
     }
 
     return (

@@ -16,7 +16,6 @@ import {
   State,
 } from 'react-native-gesture-handler';
 import { useStore } from '../store/useStore';
-import { currencyService } from '../services/currency.service';
 import { getCurrentTheme } from '../services/theme.service';
 
 interface Currency {
@@ -42,20 +41,17 @@ const CurrencySelector: React.FC<{
   const { darkMode } = useStore();
   const theme = getCurrentTheme();
 
-  // Load currencies from backend
   useEffect(() => {
-    const loadCurrencies = async () => {
-      if (visible) {
-        try {
-          const currencyData = await currencyService.loadCurrencies();
-          setCurrencies(currencyData);
-        } catch (error) {
-          console.error('Error loading currencies:', error);
-        }
-      }
-    };
+    if (!visible) return;
 
-    loadCurrencies();
+    const currencyData: Currency[] = [
+      { _id: '1', code: 'INR', name: 'Indian Rupee', symbol: '₹', createdAt: '', updatedAt: '' },
+      { _id: '2', code: 'USD', name: 'US Dollar', symbol: '$', createdAt: '', updatedAt: '' },
+      { _id: '3', code: 'EUR', name: 'Euro', symbol: '€', createdAt: '', updatedAt: '' },
+      { _id: '4', code: 'GBP', name: 'British Pound', symbol: '£', createdAt: '', updatedAt: '' },
+    ];
+
+    setCurrencies(currencyData);
   }, [visible]);
 
   // Filter currencies based on search query

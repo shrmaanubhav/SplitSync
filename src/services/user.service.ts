@@ -1,66 +1,66 @@
-// User Service
-// Simplified implementation to avoid dependency issues
+import firestore from '@react-native-firebase/firestore';
 
-// Import API client
-import api from './api';
-
-interface User {
+export interface User {
   _id: string;
   name: string;
   phoneNumber: string;
-  currency: string; // Add currency field
-  friends: string[];
-  createdAt: string;
-  updatedAt: string;
+  currency: string;
+  createdAt: number;
 }
 
-interface AddFriendData {
-  friendId: string;
-}
+const usersRef = firestore().collection('users');
 
 export const userService = {
-  // Get all users
-  async getAllUsers(): Promise<User[]> {
-    const response = await api.get<User[]>('/users');
-    return response.data;
+  async createUser(data: {
+    name: string;
+    phoneNumber: string;
+  }): Promise<User> {
+    const existing = await this.getUserByPhone(data.phoneNumber);
+    if (existing) return existing;
+
+    const doc = await usersRef.add({
+      name: data.name,
+      phoneNumber: data.phoneNumber,
+      currency: 'INR',
+      createdAt: Date.now(),
+    });
+
+    return {
+      _id: doc.id,
+      ...data,
+      currency: 'INR',
+      createdAt: Date.now(),
+    };
   },
 
-  // Search users by phone number
-  async searchUsersByPhoneNumber(phoneNumber: string): Promise<User[]> {
-    const response = await api.get<User[]>(
-      `/users/search?phoneNumber=${encodeURIComponent(phoneNumber)}`
-    );
-    return response.data;
+  async getUserByPhone(phoneNumber: string): Promise<User | null> {
+    const snap = await usersRef
+      .where('phoneNumber', '==', phoneNumber)
+      .limit(1)
+      .get();
+
+    if (snap.empty) return null;
+
+    const d = snap.docs[0];
+    return { _id: d.id, ...(d.data() as any) };
   },
 
-  // Get user by ID
-  async getUserById(id: string): Promise<User> {
-    const response = await api.get<User>(`/users/${id}`);
-    return response.data;
+  async getUserById(id: string): Promise<User | null> {
+    const doc = await usersRef.doc(id).get();
+    if (!doc.exists) return null;
+    return { _id: doc.id, ...(doc.data() as any) };
   },
 
-  // Update user profile
-  async updateUser(id: string, data: Partial<User>): Promise<User> {
-    const response = await api.put<User>(`/users/${id}`, data);
-    return response.data;
+  async addFriend(userId: string, friendId: string) {
+    await usersRef.doc(userId).update({
+      friends: firestore.FieldValue.arrayUnion(friendId),
+    });
   },
 
-  // Update user currency preference
-  async updateUserCurrency(id: string, currency: string): Promise<User> {
-    const response = await api.put<User>(`/users/${id}/currency`, { currency });
-    return response.data;
-  },
-
-  // Add friend
-  async addFriend(id: string, data: AddFriendData): Promise<any> {
-    const response = await api.post(`/users/${id}/friends`, data);
-    return response.data;
-  },
-
-  // Remove friend
-  async removeFriend(id: string, friendId: string): Promise<any> {
-    const response = await api.delete(`/users/${id}/friends/${friendId}`);
-    return response.data;
+  async removeFriend(userId: string, friendId: string) {
+    await usersRef.doc(userId).update({
+      friends: firestore.FieldValue.arrayRemove(friendId),
+    });
   },
 };
 

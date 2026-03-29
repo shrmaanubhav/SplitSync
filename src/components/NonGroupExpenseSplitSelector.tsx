@@ -12,8 +12,6 @@ import {
 import { useNavigation } from '@react-navigation/native';
 import { getCurrentTheme } from '../services/theme.service';
 import Avatar from './Avatar';
-import { userService } from '../services/user.service';
-import { friendService } from '../services/friend.service';
 import { contactsService } from '../services/contacts.service';
 import { useStore } from '../store/useStore';
 import { useSelection } from '../contexts/SelectionContext';
@@ -50,7 +48,7 @@ const NonGroupExpenseSplitSelector: React.FC<
     if (user) {
       setParticipants([
         {
-          id: user.id || '',
+          id: user._id || '',
           name: user.name || 'You',
           phoneNumber: user.phoneNumber || '',
           amount: '0.00',
@@ -223,7 +221,7 @@ const NonGroupExpenseSplitSelector: React.FC<
     navigation.navigate('SelectPeople', {
       selectedMembers: participants
         .map(p => p.id)
-        .filter(id => id !== user?.id),
+        .filter(id => id !== user?._id),
       title: 'Select People to Split With',
       mode: 'multiple',
     });

@@ -1,6 +1,6 @@
 import React from 'react';
 import { TouchableOpacity, Text, StyleSheet } from 'react-native';
-import { getFloatingButtonPosition } from '../utils/layout.utils';
+import { getFloatingButtonPosition } from '../utils/layout';
 
 interface FloatingActionButtonProps {
   onPress: () => void;

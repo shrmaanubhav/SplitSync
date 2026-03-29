@@ -7,15 +7,12 @@ import {
   TouchableOpacity,
   ActivityIndicator,
   RefreshControl,
-  Alert,
 } from 'react-native';
-import { useNavigation } from '@react-navigation/native';
-import { friendService } from '../services/friend.service';
-import { contactsService } from '../services/contacts.service';
 import { useStore } from '../store/useStore';
 import Screen from '../components/Screen';
 import Avatar from '../components/Avatar';
 import { getCurrentTheme } from '../services/theme.service';
+import firestore from '@react-native-firebase/firestore';
 
 interface Friend {
   _id: string;
@@ -23,16 +20,7 @@ interface Friend {
   phoneNumber: string;
 }
 
-// FIX: type for backend response
-type FriendAPI = {
-  _id?: string;
-  id?: string;
-  name: string;
-  phoneNumber: string;
-};
-
 const FriendsScreen = () => {
-  const navigation = useNavigation();
   const { user } = useStore();
   const theme = getCurrentTheme();
 
@@ -40,40 +28,40 @@ const FriendsScreen = () => {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
 
-  useEffect(() => {
-    loadFriends();
-    uploadContacts();
-  }, []);
-
-  const uploadContacts = async () => {
-    if (!user) return;
-
-    try {
-      await friendService.uploadContacts(user.id);
-    } catch (error) {
-      console.error('Error uploading contacts:', error);
-    }
-  };
-
+  // ---------- FETCH ----------
   const loadFriends = async () => {
-    if (!user) return;
+    if (!user?._id) return;
 
     try {
       setLoading(true);
 
-      // FIX: typed response
-      const friendsData: FriendAPI[] = await friendService.getAllFriends(user.id);
+      const userDoc = await firestore()
+        .collection('users')
+        .doc(user._id)
+        .get();
 
-      const formattedFriends: Friend[] = friendsData.map((friend) => ({
-        _id: friend._id || friend.id || '',
-        name: friend.name,
-        phoneNumber: friend.phoneNumber,
+      const data = userDoc.data();
+      const friendIds: string[] = data?.friends || [];
+
+      if (friendIds.length === 0) {
+        setFriends([]);
+        return;
+      }
+
+      const docs = await Promise.all(
+        friendIds.map(id =>
+          firestore().collection('users').doc(id).get()
+        )
+      );
+
+      const result = docs.map(doc => ({
+        _id: doc.id,
+        ...(doc.data() as any),
       }));
 
-      setFriends(formattedFriends);
-    } catch (error) {
-      console.error('Error loading friends:', error);
-      Alert.alert('Error', 'Failed to load friends');
+      setFriends(result);
+    } catch (e) {
+      console.error(e);
     } finally {
       setLoading(false);
     }
@@ -81,19 +69,13 @@ const FriendsScreen = () => {
 
   const onRefresh = async () => {
     setRefreshing(true);
-    try {
-      if (user) {
-        await uploadContacts();
-        await new Promise(resolve => setTimeout(resolve, 500));
-        await loadFriends();
-      }
-    } catch (error) {
-      console.error('Error refreshing friends:', error);
-      Alert.alert('Error', 'Failed to refresh friends');
-    } finally {
-      setRefreshing(false);
-    }
+    await loadFriends();
+    setRefreshing(false);
   };
+
+  useEffect(() => {
+    loadFriends();
+  }, []);
 
   const renderFriend = ({ item }: { item: Friend }) => (
     <TouchableOpacity
@@ -111,7 +93,7 @@ const FriendsScreen = () => {
           {item.name}
         </Text>
         <Text style={[styles.friendPhone, { color: theme.textSecondary }]}>
-          {contactsService.formatPhoneNumber(item.phoneNumber)}
+          {item.phoneNumber}
         </Text>
       </View>
     </TouchableOpacity>
@@ -120,99 +102,47 @@ const FriendsScreen = () => {
   if (loading) {
     return (
       <Screen>
-        <View style={[styles.container, { backgroundColor: theme.background }]}>
-          <ActivityIndicator
-            size="large"
-            color={theme.primary}
-            style={styles.loader}
-          />
-        </View>
+        <ActivityIndicator size="large" color={theme.primary} />
       </Screen>
     );
   }
 
   return (
     <Screen>
-      <View style={[styles.container, { backgroundColor: theme.background }]}>
-        <Text style={[styles.title, { color: theme.textPrimary }]}>
-          My Friends
-        </Text>
-
-        {friends.length === 0 ? (
-          <View style={styles.emptyContainer}>
-            <Text style={[styles.emptyText, { color: theme.textSecondary }]}>
-              You don't have any friends yet.
-            </Text>
-            <Text style={[styles.emptySubtext, { color: theme.textTertiary }]}>
-              Add friends to start sharing expenses!
-            </Text>
-          </View>
-        ) : (
-          <FlatList
-            data={friends}
-            renderItem={renderFriend}
-            keyExtractor={(item) => item._id}
-            refreshControl={
-              <RefreshControl
-                refreshing={refreshing}
-                onRefresh={onRefresh}
-                colors={[theme.primary]}
-                tintColor={theme.primary}
-              />
-            }
-            contentContainerStyle={styles.friendsList}
-          />
-        )}
-      </View>
+      <FlatList
+        data={friends}
+        renderItem={renderFriend}
+        keyExtractor={item => item._id}
+        refreshControl={
+          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
+        }
+        contentContainerStyle={styles.friendsList}
+        ListEmptyComponent={
+          <Text style={{ textAlign: 'center', marginTop: 40 }}>
+            No friends yet
+          </Text>
+        }
+      />
     </Screen>
   );
 };
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-  },
-  title: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    padding: 20,
-  },
-  loader: {
-    flex: 1,
-    justifyContent: 'center',
-  },
-  emptyContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    padding: 20,
-  },
-  emptyText: {
-    fontSize: 18,
-    textAlign: 'center',
-    marginBottom: 10,
-  },
-  emptySubtext: {
-    fontSize: 16,
-    textAlign: 'center',
-  },
   friendsList: {
-    paddingHorizontal: 20,
+    padding: 20,
   },
   friendItem: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingVertical: 15,
+    padding: 15,
     borderBottomWidth: 1,
   },
   friendInfo: {
     marginLeft: 15,
-    flex: 1,
   },
   friendName: {
     fontSize: 18,
     fontWeight: '600',
-    marginBottom: 5,
   },
   friendPhone: {
     fontSize: 14,

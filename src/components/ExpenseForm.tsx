@@ -8,7 +8,7 @@ import {
   Alert,
 } from 'react-native';
 import Button from './Button';
-import { expenseService } from '../services/expense.service';
+import firestore from '@react-native-firebase/firestore';
 
 interface ExpenseFormProps {
   groupId?: string;
@@ -53,17 +53,18 @@ const ExpenseForm: React.FC<ExpenseFormProps> = ({ groupId, onSubmit }) => {
     setSplits(newSplits);
   };
 
+
   const handleSubmit = async () => {
     if (!description || !amount || !paidBy || !groupId) {
       Alert.alert('Error', 'Please fill in all required fields');
       return;
     }
 
-    // Validate splits
     const totalSplitAmount = splits.reduce(
       (sum, split) => sum + parseFloat(split.amount || '0'),
       0
     );
+
     if (Math.abs(totalSplitAmount - parseFloat(amount)) > 0.01) {
       Alert.alert('Error', 'Split amounts must sum to total amount');
       return;
@@ -72,16 +73,16 @@ const ExpenseForm: React.FC<ExpenseFormProps> = ({ groupId, onSubmit }) => {
     setLoading(true);
 
     try {
-      await expenseService.createExpense({
+      await firestore().collection('expenses').add({
         description,
         amount: parseFloat(amount),
         paidBy,
-        group: groupId,
+        groupId,
         splits: splits.map(split => ({
-          user: split.user,
+          userId: split.user,
           amount: parseFloat(split.amount),
         })),
-        category,
+        createdAt: Date.now(),
       });
 
       Alert.alert('Success', 'Expense added successfully');

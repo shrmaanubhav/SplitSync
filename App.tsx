@@ -8,11 +8,10 @@ import {
 } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
-import { StyleSheet } from 'react-native';
+import { StyleSheet, View, ActivityIndicator } from 'react-native';
 
 // Screens
 import LoginScreen from './src/screens/Login';
-import RegisterScreen from './src/screens/Register';
 import DashboardScreen from './src/screens/Dashboard';
 import GroupsScreen from './src/screens/Group';
 import GroupDetailScreen from './src/screens/GroupDetails';
@@ -29,6 +28,7 @@ import CategorySelectorScreen from './src/screens/CategorySelector';
 
 // Components / services
 import { useStore } from './src/store/useStore';
+import { useAuth } from './src/hooks/useAuth';
 import { getThemeColors } from './src/services/theme.service';
 import FloatingTabBar from './src/components/FloatingTabBar';
 import ThemeProvider from './src/components/ThemeProvider';
@@ -38,12 +38,11 @@ import { SelectionProvider } from './src/contexts/SelectionContext';
 import { ExpenseCategory } from './src/data/categories';
 
 // ==============================
-// ROOT STACK TYPES
+// TYPES
 // ==============================
 export type RootStackParamList = {
   Main: undefined;
   Login: undefined;
-  Register: undefined;
   Settings: undefined;
   Friends: undefined;
   EditProfile: undefined;
@@ -59,9 +58,6 @@ export type RootStackParamList = {
   };
 };
 
-// ==============================
-// TAB TYPES
-// ==============================
 type TabParamList = {
   Dashboard: undefined;
   Groups: undefined;
@@ -106,7 +102,9 @@ function MainTabs() {
 // APP
 // ==============================
 export default function App() {
-  const { isAuthenticated, darkMode } = useStore();
+  const { isAuthenticated, user, darkMode } = useStore();
+  const { loading } = useAuth();
+
   const themeColors = getThemeColors(darkMode);
 
   const CustomLightTheme: Theme = {
@@ -135,6 +133,15 @@ export default function App() {
 
   const theme = darkMode ? CustomDarkTheme : CustomLightTheme;
 
+  // ---------- LOADING STATE ----------
+  if (loading) {
+    return (
+      <View style={styles.loader}>
+        <ActivityIndicator size="large" />
+      </View>
+    );
+  }
+
   return (
     <SelectionProvider>
       <ThemeProvider>
@@ -146,7 +153,7 @@ export default function App() {
               contentStyle: { backgroundColor: themeColors.background },
             }}
           >
-            {isAuthenticated ? (
+            {isAuthenticated && user ? (
               <>
                 <Stack.Screen
                   name="Main"
@@ -195,18 +202,11 @@ export default function App() {
                 />
               </>
             ) : (
-              <>
-                <Stack.Screen
-                  name="Login"
-                  component={LoginScreen}
-                  options={{ headerShown: false }}
-                />
-                <Stack.Screen
-                  name="Register"
-                  component={RegisterScreen}
-                  options={{ headerShown: false }}
-                />
-              </>
+              <Stack.Screen
+                name="Login"
+                component={LoginScreen}
+                options={{ headerShown: false }}
+              />
             )}
           </Stack.Navigator>
         </NavigationContainer>
@@ -215,8 +215,13 @@ export default function App() {
   );
 }
 
+// ==============================
+// STYLES
+// ==============================
 const styles = StyleSheet.create({
-  container: {
+  loader: {
     flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
 });
