@@ -1,44 +1,68 @@
 import { useEffect, useState } from 'react';
-import auth from '@react-native-firebase/auth';
+import firestore from '@react-native-firebase/firestore';
 import { useStore } from '../store/useStore';
-import userService from '../services/user.service';
+import authService from '../services/auth.service';
 
 export const useAuth = () => {
   const [loading, setLoading] = useState(true);
-  const { setUser, setIsAuthenticated } = useStore();
+
+  const {
+    setUser,
+    setIsAuthenticated,
+    setUnlocked,
+  } = useStore();
 
   useEffect(() => {
-    const unsub = auth().onAuthStateChanged(async (fbUser) => {
+    const unsubscribe = authService.onAuthStateChanged(async (fbUser) => {
       setLoading(true);
 
+      // ---------- NOT LOGGED IN ----------
       if (!fbUser) {
         setIsAuthenticated(false);
         setUser(null);
+        setUnlocked(false);
         setLoading(false);
         return;
       }
 
-      setIsAuthenticated(true);
+      const uid = fbUser.uid;
 
-      const phone = fbUser.phoneNumber;
-      if (!phone) {
-        setUser(null);
-        setLoading(false);
-        return;
-      }
+      try {
+        const doc = await firestore()
+          .collection('users')
+          .doc(uid)
+          .get();
 
-      const user = await userService.getUserByPhone(phone);
+        // 🔴 IMPORTANT: DO NOT RESET if user not created yet
+        if (!doc.exists) {
+          setLoading(false);
+          return;
+        }
 
-      // prevent loop
-      const current = useStore.getState().user;
-      if (!current || current._id !== user?._id) {
-        setUser(user);
+        const userData = doc.data();
+
+        setUser({
+          _id: uid,
+          ...(userData as any),
+        });
+
+        setIsAuthenticated(true);
+
+        // 🔒 LOCK APP ON START
+        const hasPin = await authService.getSavedPin();
+        if (hasPin) {
+          setUnlocked(false);
+        } else {
+          setUnlocked(true);
+        }
+      } catch (e) {
+        console.log('Auth error:', e);
       }
 
       setLoading(false);
     });
 
-    return unsub;
+    return unsubscribe;
   }, []);
 
   return { loading };

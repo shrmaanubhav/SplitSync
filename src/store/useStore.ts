@@ -56,6 +56,11 @@ interface AppState {
   darkMode: boolean;
   loading: boolean;
 
+  // app locked state
+  isUnlocked: boolean;
+  setUnlocked: (val: boolean) => void;
+  
+
   // auth actions
   setIsAuthenticated: (val: boolean) => void;
   setUser: (user: User | null) => void;
@@ -102,11 +107,16 @@ export const useStore = create<AppState>()(
 
       setToken: (token) => set({ token }),
 
+      isUnlocked: false,
+      setUnlocked: (val) => set({ isUnlocked: val }),
+
+
       logout: () =>
         set({
           isAuthenticated: false,
           user: null,
           token: null,
+          isUnlocked: false,
           groups: [],
           expenses: [],
           balances: [],

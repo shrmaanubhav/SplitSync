@@ -102,7 +102,7 @@ function MainTabs() {
 // APP
 // ==============================
 export default function App() {
-  const { isAuthenticated, user, darkMode } = useStore();
+  const { isAuthenticated, user, isUnlocked, darkMode } = useStore();
   const { loading } = useAuth();
 
   const themeColors = getThemeColors(darkMode);
@@ -153,7 +153,7 @@ export default function App() {
               contentStyle: { backgroundColor: themeColors.background },
             }}
           >
-            {isAuthenticated && user ? (
+            {isAuthenticated && user && isUnlocked ? (
               <>
                 <Stack.Screen
                   name="Main"

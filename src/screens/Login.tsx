@@ -13,20 +13,22 @@ import authService from '../services/auth.service';
 import firestore from '@react-native-firebase/firestore';
 import { useStore } from '../store/useStore';
 
-type Step = 'phone' | 'otp' | 'pin' | 'setup';
+type Step = 'auth' | 'pin' | 'setup';
 
 const LoginScreen = () => {
-  const [step, setStep] = useState<Step>('phone');
+  const [step, setStep] = useState<Step>('auth');
 
   const [phone, setPhone] = useState('');
   const [otp, setOtp] = useState('');
+  const [otpSent, setOtpSent] = useState(false);
+
   const [pin, setPin] = useState('');
   const [name, setName] = useState('');
 
   const [loading, setLoading] = useState(false);
 
   const theme = getCurrentTheme();
-  const { setUser } = useStore();
+  const { setUser, setUnlocked } = useStore();
 
   // ---------- CHECK EXISTING SESSION ----------
   useEffect(() => {
@@ -42,83 +44,93 @@ const LoginScreen = () => {
     check();
   }, []);
 
-  // ---------- MAIN FLOW ----------
-  const handleAction = async () => {
-    setLoading(true);
+  // ---------- SEND OTP ----------
+  const handleSendOTP = async () => {
+    if (!phone) {
+      Alert.alert('Error', 'Enter phone number');
+      return;
+    }
 
     try {
-      // PHONE
-      if (step === 'phone') {
-        if (!phone) throw new Error('Enter phone number');
+      setLoading(true);
+      await authService.sendOTP(phone);
+      setOtpSent(true);
+    } catch (e: any) {
+      Alert.alert('Error', e.message);
+    } finally {
+      setLoading(false);
+    }
+  };
 
-        await authService.sendOTP(phone);
-        setStep('otp');
-      }
+  // ---------- VERIFY OTP ----------
+  const handleVerifyOTP = async () => {
+    try {
+      setLoading(true);
 
-      // OTP
-      else if (step === 'otp') {
-        const fbUser = await authService.verifyOTP(otp);
+      const fbUser = await authService.verifyOTP(otp);
+      const uid = fbUser?.uid;
+      const phoneNumber = fbUser?.phoneNumber;
 
-        const uid = fbUser?.uid;
-        const phoneNumber = fbUser?.phoneNumber;
+      if (!uid || !phoneNumber) throw new Error('Auth failed');
 
-        if (!uid || !phoneNumber) throw new Error('Auth failed');
+      const doc = await firestore()
+        .collection('users')
+        .doc(uid)
+        .get();
 
-        const userDoc = await firestore()
-          .collection('users')
-          .doc(uid)
-          .get();
-
-        if (userDoc.exists()) {
-          setStep('pin');
-        } else {
-          setStep('setup');
-        }
-      }
-
-      // PIN
-      else if (step === 'pin') {
-        const savedPin = await authService.getSavedPin();
-
-        if (pin === savedPin) {
-          // useAuth handles navigation
-        } else {
-          Alert.alert('Error', 'Incorrect PIN');
-        }
-      }
-
-      // SETUP (NEW USER)
-      else if (step === 'setup') {
-        if (!name || pin.length < 4) {
-          throw new Error('Enter valid name and 4-digit PIN');
-        }
-
-        const fbUser = authService.getCurrentUser();
-        const uid = fbUser?.uid;
-        const phoneNumber = fbUser?.phoneNumber;
-
-        if (!uid || !phoneNumber) throw new Error('Auth failed');
-
-        await authService.savePin(pin);
-
-        // ✅ CREATE FIRESTORE USER
-        const newUser = {
-          _id: uid,
-          name,
-          phoneNumber,
-          currency: 'INR',
-          friends: [],
-          createdAt: Date.now(),
-        };
-
-        await firestore().collection('users').doc(uid).set(newUser);
-
-        setUser(newUser);
+      if (doc.exists()) {
+        setStep('pin');
+      } else {
+        setStep('setup');
       }
     } catch (e: any) {
       Alert.alert('Error', e.message);
     } finally {
       setLoading(false);
+    }
+  };
+
+  // ---------- PIN ----------
+  const handlePin = async () => {
+    const savedPin = await authService.getSavedPin();
+
+    if (pin === savedPin) {
+      setUnlocked(true);
+    } else {
+      Alert.alert('Error', 'Incorrect PIN');
+    }
+  };
+
+  // ---------- SETUP ----------
+  const handleSetup = async () => {
+    try {
+      if (!name || pin.length < 4) {
+        throw new Error('Enter valid name and PIN');
+      }
+
+      const fbUser = authService.getCurrentUser();
+      const uid = fbUser?.uid;
+      const phoneNumber = fbUser?.phoneNumber;
+
+      if (!uid || !phoneNumber) throw new Error('Auth failed');
+
+      await authService.savePin(pin);
+
+      const newUser = {
+        _id: uid,
+        name,
+        phoneNumber,
+        currency: 'INR',
+        friends: [],
+        createdAt: Date.now(),
+      };
+
+      await firestore().collection('users').doc(uid).set(newUser);
+
+      setUser(newUser);
+      setUnlocked(true);
+    } catch (e: any) {
+      Alert.alert('Error', e.message);
     }
   };
 
@@ -139,56 +151,79 @@ const LoginScreen = () => {
       </Text>
 
       <View style={styles.form}>
-        {step === 'phone' && (
-          <TextInput
-            style={[
-              styles.input,
-              { backgroundColor: theme.cardBackground, color: theme.textPrimary },
-            ]}
-            placeholder="Enter phone number"  
-            placeholderTextColor="#363232"
-            value={phone}
-            onChangeText={setPhone}
-            keyboardType="phone-pad"
-          />
+        {/* ---------- AUTH (PHONE + OTP SAME SCREEN) ---------- */}
+        {step === 'auth' && (
+          <>
+            <TextInput
+              style={[
+                styles.input,
+                { backgroundColor: theme.cardBackground, color: theme.textPrimary },
+              ]}
+              placeholder="Enter phone number"
+              placeholderTextColor="#999"
+              value={phone}
+              onChangeText={setPhone}
+              keyboardType="phone-pad"
+            />
+
+            {!otpSent ? (
+              <Button
+                title="Send OTP"
+                onPress={handleSendOTP}
+                loading={loading}
+              />
+            ) : (
+              <>
+                <TextInput
+                  style={[
+                    styles.input,
+                    { backgroundColor: theme.cardBackground, color: theme.textPrimary },
+                  ]}
+                  placeholder="Enter OTP"
+                  placeholderTextColor="#999"
+                  value={otp}
+                  onChangeText={setOtp}
+                  keyboardType="number-pad"
+                  maxLength={6}
+                />
+
+                <Button
+                  title="Verify OTP"
+                  onPress={handleVerifyOTP}
+                  loading={loading}
+                />
+              </>
+            )}
+          </>
         )}
 
-        {step === 'otp' && (
-          <TextInput
-            style={[
-              styles.input,
-              { backgroundColor: theme.cardBackground, color: theme.textPrimary },
-            ]}
-            placeholder="Enter OTP"
-            placeholderTextColor="#363232"
-            value={otp}
-            onChangeText={setOtp}
-            keyboardType="number-pad"
-            maxLength={6}
-          />
-        )}
-
+        {/* ---------- PIN ---------- */}
         {step === 'pin' && (
-          <TextInput
-            style={[
-              styles.input,
-              {
-                backgroundColor: theme.cardBackground,
-                color: theme.textPrimary,
-                textAlign: 'center',
-                fontSize: 28,
-              },
-            ]}
-            placeholder="Enter PIN"
-            placeholderTextColor="#363232"
-            value={pin}
-            onChangeText={setPin}
-            keyboardType="number-pad"
-            maxLength={4}
-            secureTextEntry
-          />
+          <>
+            <TextInput
+              style={[
+                styles.input,
+                {
+                  backgroundColor: theme.cardBackground,
+                  color: theme.textPrimary,
+                  textAlign: 'center',
+                  fontSize: 28,
+                },
+              ]}
+              placeholder="Enter PIN"
+              placeholderTextColor="#999"
+              value={pin}
+              onChangeText={setPin}
+              keyboardType="number-pad"
+              maxLength={4}
+              secureTextEntry
+            />
+
+            <Button title="Unlock" onPress={handlePin} />
+          </>
         )}
 
+        {/* ---------- SETUP ---------- */}
         {step === 'setup' && (
           <>
             <TextInput
@@ -197,7 +232,7 @@ const LoginScreen = () => {
                 { backgroundColor: theme.cardBackground, color: theme.textPrimary },
               ]}
               placeholder="Enter your name"
-              placeholderTextColor="#363232"
+              placeholderTextColor="#999"
               value={name}
               onChangeText={setName}
             />
@@ -212,17 +247,17 @@ const LoginScreen = () => {
                 },
               ]}
               placeholder="Create PIN"
-              placeholderTextColor="#363232"
+              placeholderTextColor="#999"
               value={pin}
               onChangeText={setPin}
               keyboardType="number-pad"
               maxLength={4}
               secureTextEntry
             />
+
+            <Button title="Finish" onPress={handleSetup} />
           </>
         )}
-
-        <Button title="Continue" onPress={handleAction} loading={loading} />
       </View>
     </ScrollView>
   );
