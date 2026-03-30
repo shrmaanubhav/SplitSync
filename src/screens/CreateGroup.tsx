@@ -1,226 +1,117 @@
-import React, { useState, useEffect } from 'react';
-import firestore from '@react-native-firebase/firestore';
+import React, { useState } from 'react';
 import {
   View,
+  TextInput,
   Text,
   StyleSheet,
-  TextInput,
-  ScrollView,
   Alert,
-  ActivityIndicator,
 } from 'react-native';
-import { useNavigation } from '@react-navigation/native';
-import Button from '../components/Button';
-import MemberSelector from '../components/MemberSelector';
-// import { groupService } from '../services/group.service';
-import { contactsService } from '../services/contacts.service';
+import { useNavigation, NavigationProp } from '@react-navigation/native';
 import { useStore } from '../store/useStore';
+import Button from '../components/Button';
+import { groupService } from '../services/group.service';
+import { RootStackParamList } from '../types/navigation.types';
 import { getCurrentTheme } from '../services/theme.service';
-import Screen from '../components/Screen';
 
 const CreateGroupScreen = () => {
-  const navigation = useNavigation();
-  const { user } = useStore();
-
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
-  const [selectedMembers, setSelectedMembers] = useState<string[]>([]);
-  const [loading, setLoading] = useState(false);
-  const [initializing, setInitializing] = useState(true);
 
-  // Check contacts when screen is loaded
-  useEffect(() => {
-    const initializeScreen = async () => {
-      try {
-        // Check if we have contacts permission
-        const hasPermission = await contactsService.hasPermission();
-        if (!hasPermission) {
-          // Request permission silently
-          await contactsService.requestPermission();
-        }
+  const navigation = useNavigation<NavigationProp<RootStackParamList>>();
+  const { user } = useStore();
+  const theme = getCurrentTheme();
 
-        // We can add any other initialization logic here if needed
-      } catch (error) {
-        console.log('Error initializing contacts:', error);
-      } finally {
-        setInitializing(false);
-      }
-    };
-
-    initializeScreen();
-  }, []);
-
-  const handleMemberSelect = (userId: string) => {
-    if (!selectedMembers.includes(userId)) {
-      setSelectedMembers([...selectedMembers, userId]);
-    }
-  };
-
-  const handleMemberRemove = (userId: string) => {
-    setSelectedMembers(selectedMembers.filter(id => id !== userId));
-  };
-
-  const handleCreateGroup = async () => {
+  async function handleCreate() {
     if (!name) {
-      Alert.alert('Error', 'Enter group name');
+      Alert.alert('Enter group name');
       return;
     }
-    setLoading(true);
+
+    if (!user?._id) {
+      Alert.alert('Error', 'User not found');
+      return;
+    }
+
+    // TEMP TEST MEMBERS
+    const members = [
+      user._id,
+      'u2',
+      'u3',
+    ];
+
     try {
-      const user = useStore.getState().user;
-      await firestore().collection('groups').add({
+      const group = await groupService.createGroup({
         name,
+        members,
         description,
-        members: [user?._id, ...selectedMembers],
-        createdBy: user?._id,
-        createdAt: Date.now(),
       });
-      Alert.alert('Success', 'Group created', [
-        { text: 'OK', onPress: () => navigation.goBack() },
-      ]);
+
+      navigation.navigate('GroupDetail', { group });
     } catch (e) {
       console.error(e);
       Alert.alert('Error', 'Failed to create group');
-    } finally {
-      setLoading(false);
     }
-  };
-  const theme = getCurrentTheme();
-  
-  if (initializing) {
-    return (
-      <Screen>
-        <View
-          style={[
-            styles.container,
-            { backgroundColor: theme.background, justifyContent: 'center' },
-          ]}
-        >
-          <ActivityIndicator size="large" color={theme.primary} />
-          <Text style={[styles.loadingText, { color: theme.textPrimary }]}>
-            Initializing contacts...
-          </Text>
-        </View>
-      </Screen>
-    );
   }
 
   return (
-    <Screen>
-      <View style={[styles.container, { backgroundColor: theme.background }]}>
-        <ScrollView
-          style={styles.scrollContainer}
-          keyboardShouldPersistTaps="handled"
-        >
-          <View style={styles.content}>
-            <Text style={[styles.title, { color: theme.textPrimary }]}>
-              Create New Group
-            </Text>
+    <View style={[styles.container, { backgroundColor: theme.background }]}>
+      
+      <Text style={[styles.title, { color: theme.textPrimary }]}>
+        Create Group
+      </Text>
 
-            <View style={styles.formGroup}>
-              <Text style={[styles.label, { color: theme.textPrimary }]}>
-                Group Name
-              </Text>
-              <TextInput
-                style={[
-                  styles.input,
-                  {
-                    backgroundColor: theme.cardBackground,
-                    color: theme.textPrimary,
-                    borderColor: theme.border,
-                  },
-                ]}
-                value={name}
-                onChangeText={setName}
-                placeholder="Enter group name"
-                placeholderTextColor={theme.textTertiary}
-              />
-            </View>
+      {/* GROUP NAME */}
+      <TextInput
+        placeholder="Group Name"
+        placeholderTextColor={theme.textSecondary}
+        value={name}
+        onChangeText={setName}
+        style={[
+          styles.input,
+          {
+            color: theme.textPrimary,
+            borderColor: theme.border,
+            backgroundColor: theme.cardBackground,
+          },
+        ]}
+      />
 
-            <View style={styles.formGroup}>
-              <Text style={[styles.label, { color: theme.textPrimary }]}>
-                Description
-              </Text>
-              <TextInput
-                style={[
-                  styles.input,
-                  styles.textArea,
-                  {
-                    backgroundColor: theme.cardBackground,
-                    color: theme.textPrimary,
-                    borderColor: theme.border,
-                  },
-                ]}
-                value={description}
-                onChangeText={setDescription}
-                placeholder="Enter group description (optional)"
-                placeholderTextColor={theme.textTertiary}
-                multiline
-                numberOfLines={4}
-              />
-            </View>
+      {/* DESCRIPTION */}
+      <TextInput
+        placeholder="Description"
+        placeholderTextColor={theme.textSecondary}
+        value={description}
+        onChangeText={setDescription}
+        style={[
+          styles.input,
+          {
+            color: theme.textPrimary,
+            borderColor: theme.border,
+            backgroundColor: theme.cardBackground,
+          },
+        ]}
+      />
 
-            <MemberSelector
-              selectedMembers={selectedMembers}
-              onMemberSelect={handleMemberSelect}
-              onMemberRemove={handleMemberRemove}
-            />
-
-            <Button
-              title="Create Group"
-              onPress={handleCreateGroup}
-              loading={loading}
-              disabled={loading}
-              style={styles.button}
-            />
-          </View>
-        </ScrollView>
-      </View>
-    </Screen>
+      <Button title="Create" onPress={handleCreate} />
+    </View>
   );
 };
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-  },
-  scrollContainer: {
-    flex: 1,
-  },
-  content: {
     padding: 20,
   },
   title: {
     fontSize: 24,
+    marginBottom: 20,
     fontWeight: 'bold',
-    marginBottom: 20,
-  },
-  formGroup: {
-    marginBottom: 20,
-  },
-  label: {
-    fontSize: 16,
-    fontWeight: '600',
-    marginBottom: 10,
   },
   input: {
-    borderRadius: 8,
-    padding: 15,
-    fontSize: 16,
     borderWidth: 1,
-  },
-  textArea: {
-    height: 100,
-    textAlignVertical: 'top',
-  },
-  button: {
-    marginTop: 20,
-    marginBottom: 20, // Add some bottom margin
-  },
-  loadingText: {
-    marginTop: 10,
-    textAlign: 'center',
-    fontSize: 16,
+    padding: 12,
+    marginBottom: 20,
+    borderRadius: 8,
   },
 });
 

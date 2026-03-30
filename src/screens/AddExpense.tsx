@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import {
   View,
   Text,
@@ -6,206 +6,142 @@ import {
   TextInput,
   ScrollView,
   Alert,
-  TouchableOpacity,
 } from 'react-native';
-import {
-  useNavigation,
-  useRoute,
-  NavigationProp,
-} from '@react-navigation/native';
+import { useNavigation, useRoute } from '@react-navigation/native';
 import Button from '../components/Button';
 import { useStore } from '../store/useStore';
 import { getCurrentTheme } from '../services/theme.service';
 import Screen from '../components/Screen';
 import ExpenseSplitSelector from '../components/ExpenseSplitSelector';
-import NonGroupExpenseSplitSelector from '../components/NonGroupExpenseSplitSelector';
-import CategoryIcon from '../components/CategoryIcon';
-import {
-  expenseCategories,
-  getDefaultCategory,
-} from '../data/categories';
-import { ExpenseCategory } from '../data/categories';
-
-import firestore from '@react-native-firebase/firestore';
-
-// ---------------- TYPES ----------------
-type RootStackParamList = {
-  CategorySelector: {
-    onSelectCategory: (category: ExpenseCategory) => void;
-    selectedCategory?: ExpenseCategory;
-  };
-};
+import { expenseService } from '../services/expense.service';
 
 const AddExpenseScreen = () => {
-  const navigation = useNavigation<NavigationProp<RootStackParamList>>();
+  const navigation = useNavigation();
   const route = useRoute();
-  const routeParams = route.params as { group?: any } | undefined;
-  const group = routeParams?.group;
+  const params = route.params as { group?: any };
+  const group = params?.group;
 
   const { user } = useStore();
+  const theme = getCurrentTheme();
 
   const [description, setDescription] = useState('');
   const [amount, setAmount] = useState('');
   const [splits, setSplits] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
-  const [category, setCategory] = useState<ExpenseCategory>(
-    getDefaultCategory()
-  );
 
-  const theme = getCurrentTheme();
+  // ---------- GUARD ----------
+  if (!group || !group._id) {
+    return (
+      <View style={{ padding: 20 }}>
+        <Text style={{ color: theme.textPrimary }}>
+          Invalid group data
+        </Text>
+      </View>
+    );
+  }
 
-  // ---------- AUTO CATEGORY ----------
-  useEffect(() => {
-    if (description) {
-      const lower = description.toLowerCase();
-      for (const cat of expenseCategories) {
-        if (
-          lower.includes(cat.name.toLowerCase()) ||
-          cat.name.toLowerCase().includes(lower)
-        ) {
-          setCategory(cat);
-          break;
-        }
-      }
-    }
-  }, [description]);
-
-  const handleSelectCategory = (selected: ExpenseCategory) => {
-    setCategory(selected);
-  };
-
-  // ---------- ADD EXPENSE ----------
-  const handleAddExpense = async () => {
-    if (!description || !amount) {
-      Alert.alert('Error', 'Fill all fields');
+  // ---------- HANDLER ----------
+  async function handleAddExpense() {
+    if (!user?._id) {
+      Alert.alert('Error', 'User not loaded');
       return;
     }
 
-    const amountValue = parseFloat(amount);
-    if (isNaN(amountValue) || amountValue <= 0) {
-      Alert.alert('Error', 'Invalid amount');
+    const amt = Number(amount);
+
+    if (!description || isNaN(amt) || amt <= 0) {
+      Alert.alert('Error', 'Invalid input');
       return;
     }
 
-    if (!splits || splits.length === 0) {
-      Alert.alert('Error', 'Add participants');
+    // ✅ SAFE PARTICIPANTS
+    const participants =
+      splits.length > 0
+        ? splits.map(s => s.id || s._id).filter(Boolean)
+        : group.members;
+
+    if (!participants.length) {
+      Alert.alert('Error', 'No participants');
       return;
     }
-
-    let total = 0;
-    for (const s of splits) {
-      const val = parseFloat(s.amount || '0');
-      if (isNaN(val)) {
-        Alert.alert('Error', 'Invalid split');
-        return;
-      }
-      total += val;
-    }
-
-    if (Math.abs(total - amountValue) > 0.01) {
-      Alert.alert('Error', 'Split mismatch');
-      return;
-    }
-
-    setLoading(true);
 
     try {
-      const expenseData = {
-        description,
-        amount: amountValue,
-        paidBy: user?._id,
-        groupId: group?._id || null,
-        splits: splits.map(s => ({
-          userId: s.id || s._id,
-          amount: parseFloat(s.amount),
-        })),
-        category: category.id,
-        createdAt: Date.now(),
-      };
+      setLoading(true);
 
-      await firestore().collection('expenses').add(expenseData);
+      await expenseService.createExpense({
+        groupId: group._id,
+        paidBy: user._id, // ✅ safe
+        amount: amt,
+        participants,
+      });
 
-      Alert.alert('Success', 'Expense added', [
-        { text: 'OK', onPress: () => navigation.goBack() },
-      ]);
+      navigation.goBack();
     } catch (e) {
       console.error(e);
       Alert.alert('Error', 'Failed to add expense');
     } finally {
       setLoading(false);
     }
-  };
+  }
 
   // ---------- UI ----------
   return (
     <Screen>
       <View style={[styles.container, { backgroundColor: theme.background }]}>
         <ScrollView contentContainerStyle={styles.content}>
+          
           <Text style={[styles.title, { color: theme.textPrimary }]}>
             Add Expense
           </Text>
 
-          {/* GROUP */}
-          {group ? (
-            <Text style={{ color: theme.textSecondary }}>
-              Group: {group.name}
-            </Text>
-          ) : (
-            <Text style={{ color: theme.textSecondary }}>
-              No group selected
-            </Text>
-          )}
+          <Text style={{ color: theme.textPrimary, marginBottom: 10 }}>
+            Group: {group.name}
+          </Text>
 
-          {/* DESCRIPTION */}
           <TextInput
-            style={[styles.input, { backgroundColor: theme.cardBackground }]}
+            style={[
+              styles.input,
+              {
+                color: theme.textPrimary,
+                borderColor: theme.border,
+                backgroundColor: theme.cardBackground,
+              },
+            ]}
             placeholder="Description"
+            placeholderTextColor={theme.textSecondary}
             value={description}
             onChangeText={setDescription}
           />
 
-          {/* CATEGORY */}
-          <TouchableOpacity
-            onPress={() =>
-              navigation.navigate('CategorySelector', {
-                onSelectCategory: handleSelectCategory,
-                selectedCategory: category,
-              })
-            }
-          >
-            <CategoryIcon category={category} size={40} />
-          </TouchableOpacity>
-
-          {/* AMOUNT */}
           <TextInput
-            style={[styles.input, { backgroundColor: theme.cardBackground }]}
+            style={[
+              styles.input,
+              {
+                color: theme.textPrimary,
+                borderColor: theme.border,
+                backgroundColor: theme.cardBackground,
+              },
+            ]}
             placeholder="Amount"
+            placeholderTextColor={theme.textSecondary}
             value={amount}
             onChangeText={setAmount}
             keyboardType="decimal-pad"
           />
 
-          {/* SPLITS */}
-          {group ? (
-            <ExpenseSplitSelector
-              groupMembers={group.members || []}
-              paidById={user?._id || ''}
-              totalAmount={parseFloat(amount) || 0}
-              onSplitsChange={setSplits}
-            />
-          ) : (
-            <NonGroupExpenseSplitSelector
-              paidById={user?._id || ''}
-              totalAmount={parseFloat(amount) || 0}
-              onSplitsChange={setSplits}
-            />
-          )}
+          <ExpenseSplitSelector
+            groupMembers={group.members || []}
+            paidById={user?._id || ''}
+            totalAmount={parseFloat(amount) || 0}
+            onSplitsChange={setSplits}
+          />
 
           <Button
             title="Add Expense"
             onPress={handleAddExpense}
             loading={loading}
           />
+
         </ScrollView>
       </View>
     </Screen>

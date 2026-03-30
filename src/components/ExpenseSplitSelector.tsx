@@ -63,9 +63,9 @@ const ExpenseSplitSelector: React.FC<ExpenseSplitSelectorProps> = ({
 
     // Create participant objects with empty amounts for unequal split mode
     const newParticipants = membersToInclude.map(member => ({
-      id: member._id,
-      name: member.name,
-      amount: splitType === 'equal' ? '0.00' : '', // Empty for unequal, 0 for equal
+      id: member._id || member,                // ✅ handles string
+      name: member.name || 'User',             // ✅ fallback
+      amount: splitType === 'equal' ? '0.00' : '',
     }));
 
     setParticipants(newParticipants);
@@ -129,7 +129,7 @@ const ExpenseSplitSelector: React.FC<ExpenseSplitSelectorProps> = ({
     setParticipants(updatedParticipants);
 
     // Recalculate equal split when removing a participant
-    if (splitType === 'equal') {
+    if (splitType === 'equal') {  
       splitEqually(updatedParticipants, totalAmount);
     }
   };

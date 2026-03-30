@@ -1,162 +1,133 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import {
   View,
   Text,
   StyleSheet,
   FlatList,
-  RefreshControl,
 } from 'react-native';
-import { useNavigation, useRoute } from '@react-navigation/native';
+import {
+  useNavigation,
+  useRoute,
+  useFocusEffect,
+  NavigationProp,
+} from '@react-navigation/native';
 import Button from '../components/Button';
-import { formatCurrency, formatDate } from '../utils/format';
 import { getCurrentTheme } from '../services/theme.service';
-import firestore from '@react-native-firebase/firestore';
+import { expenseService } from '../services/expense.service';
+import { getBalances } from '../services/balance.service';
+import { getSettlements } from '../services/settlement.service';
+import { RootStackParamList } from '../types/navigation.types';
 
-// ---------- TYPES ----------
-interface Expense {
-  _id: string;
-  amount: number;
-  description?: string;
-  createdAt?: number;
-  paidBy?: string;
-  groupId?: string;
-}
-
-interface Group {
-  _id: string;
-  name: string;
-  members: string[];
-}
-
-// ---------- COMPONENT ----------
 const GroupDetailScreen = () => {
-  const [group, setGroup] = useState<Group | null>(null);
-  const [expenses, setExpenses] = useState<Expense[]>([]);
-  const [analytics, setAnalytics] = useState<{ totalExpenses: number } | null>(
-    null
-  );
-  const [refreshing, setRefreshing] = useState(false);
-
-  const navigation = useNavigation();
+  const navigation = useNavigation<NavigationProp<RootStackParamList>>();
   const route = useRoute();
+
+  const { group } = route.params as any;
+
+  const [expenses, setExpenses] = useState<any[]>([]);
+  const [balances, setBalances] = useState<any>({});
+  const [settlements, setSettlements] = useState<any[]>([]);
+
   const theme = getCurrentTheme();
 
-  const routeParams = route.params as { groupId?: string; group?: any };
+  async function load() {
+    if (!group?._id) return;
 
-  // ---------- FETCH ----------
-  const fetchGroupData = async () => {
-    try {
-      const groupId = routeParams.groupId || routeParams.group?._id;
-      if (!groupId) return;
+    const exp = await expenseService.getGroupExpenses(group._id);
 
-      // GROUP
-      const groupDoc = await firestore()
-        .collection('groups')
-        .doc(groupId)
-        .get();
+    console.log('FETCHED EXPENSES:', exp); // ✅ debug
 
-      const groupData: Group = {
-        _id: groupDoc.id,
-        ...(groupDoc.data() as Omit<Group, '_id'>),
-      };
+    const bal = getBalances(group.members || [], exp);
+    const set = getSettlements(bal);
 
-      // EXPENSES
-      const expSnap = await firestore()
-        .collection('expenses')
-        .where('groupId', '==', groupId)
-        .get();
+    setExpenses(exp);
+    setBalances(bal);
+    setSettlements(set);
+  }
 
-      const expData: Expense[] = expSnap.docs.map(doc => ({
-        _id: doc.id,
-        ...(doc.data() as Omit<Expense, '_id'>),
-      }));
+  // ✅ FIX: always reload when screen focuses
+  useFocusEffect(
+    React.useCallback(() => {
+      load();
+    }, [group?._id])
+  );
 
-      // ANALYTICS
-      let total = 0;
-      expData.forEach(e => {
-        total += e.amount || 0;
-      });
-
-      setGroup(groupData);
-      setExpenses(expData);
-      setAnalytics({ totalExpenses: total });
-
-    } catch (e) {
-      console.error(e);
-    }
-  };
-
-  const onRefresh = async () => {
-    setRefreshing(true);
-    await fetchGroupData();
-    setRefreshing(false);
-  };
-
-  useEffect(() => {
-    fetchGroupData();
-  }, [routeParams.groupId]);
-
-  // ---------- UI ----------
-  const renderExpense = ({ item }: { item: Expense }) => (
-    <View
-      style={[
-        styles.expenseItem,
-        { backgroundColor: theme.cardBackground },
-      ]}
-    >
+  const renderExpense = ({ item }: any) => (
+    <View style={styles.item}>
       <Text style={{ color: theme.textPrimary }}>
-        {item.description || 'No description'}
-      </Text>
-
-      <Text style={{ color: theme.textPrimary }}>
-        {formatCurrency(item.amount)}
+        ₹{item.amount}
       </Text>
 
       <Text style={{ color: theme.textSecondary }}>
-        {item.createdAt ? formatDate(item.createdAt.toString()) : 'Just now'}
+        {item.description || 'No description'}
       </Text>
     </View>
   );
 
-  if (!group) {
-    return (
-      <View style={styles.center}>
-        <Text>Loading...</Text>
-      </View>
-    );
-  }
-
   return (
     <View style={[styles.container, { backgroundColor: theme.background }]}>
-      {/* HEADER */}
+      
+      {/* TITLE */}
       <Text style={[styles.title, { color: theme.textPrimary }]}>
-        {group.name}
+        {group?.name}
       </Text>
 
-      <Text style={{ color: theme.textSecondary }}>
-        Members: {group.members?.length || 0}
+      {/* BALANCES */}
+      <Text style={[styles.section, { color: theme.textPrimary }]}>
+        Balances
       </Text>
 
-      <Text style={{ color: theme.textPrimary }}>
-        Total: {formatCurrency(analytics?.totalExpenses || 0)}
+      {Object.keys(balances).length === 0 ? (
+        <Text style={{ color: theme.textSecondary }}>
+          No balances yet
+        </Text>
+      ) : (
+        Object.entries(balances).map(([u, a]: any) => (
+          <Text key={u} style={{ color: theme.textPrimary }}>
+            {a > 0
+              ? `${u} gets ₹${a}`
+              : a < 0
+              ? `${u} owes ₹${-a}`
+              : `${u} settled`}
+          </Text>
+        ))
+      )}
+
+      {/* SETTLEMENTS */}
+      <Text style={[styles.section, { color: theme.textPrimary }]}>
+        Settle Up
       </Text>
 
-      {/* LIST */}
-      <FlatList
-        data={expenses}
-        renderItem={renderExpense}
-        keyExtractor={item => item._id}
-        refreshControl={
-          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
-        }
-        contentContainerStyle={{ marginTop: 20 }}
-      />
+      {settlements.length === 0 ? (
+        <Text style={{ color: theme.textSecondary }}>
+          Nothing to settle
+        </Text>
+      ) : (
+        settlements.map((s, i) => (
+          <Text key={i} style={{ color: theme.textPrimary }}>
+            {s.from} → {s.to} ₹{s.amount}
+          </Text>
+        ))
+      )}
 
-      {/* BUTTON */}
+      {/* EXPENSE LIST */}
+      {expenses.length === 0 ? (
+        <Text style={{ color: theme.textSecondary, marginTop: 20 }}>
+          No expenses yet
+        </Text>
+      ) : (
+        <FlatList
+          data={expenses}
+          renderItem={renderExpense}
+          keyExtractor={(item) => item._id} // ✅ FIXED
+          contentContainerStyle={{ marginTop: 20 }}
+        />
+      )}
+
+      {/* ADD EXPENSE */}
       <Button
         title="Add Expense"
         onPress={() =>
-          // @ts-ignore
           navigation.navigate('AddExpense', { group })
         }
       />
@@ -164,25 +135,14 @@ const GroupDetailScreen = () => {
   );
 };
 
-// ---------- STYLES ----------
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    padding: 20,
-  },
-  title: {
-    fontSize: 24,
-    fontWeight: 'bold',
-  },
-  expenseItem: {
-    padding: 15,
-    borderRadius: 10,
-    marginBottom: 10,
-  },
-  center: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
+  container: { flex: 1, padding: 20 },
+  title: { fontSize: 24, fontWeight: 'bold' },
+  section: { marginTop: 20, fontWeight: 'bold' },
+  item: {
+    padding: 10,
+    borderBottomWidth: 1,
+    marginBottom: 5,
   },
 });
 
