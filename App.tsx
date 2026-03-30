@@ -33,13 +33,9 @@ import { getThemeColors } from './src/services/theme.service';
 import FloatingTabBar from './src/components/FloatingTabBar';
 import ThemeProvider from './src/components/ThemeProvider';
 import { SelectionProvider } from './src/contexts/SelectionContext';
-
-// TYPE IMPORT
 import { ExpenseCategory } from './src/data/categories';
 
-// ==============================
-// TYPES
-// ==============================
+// navigation types/params
 export type RootStackParamList = {
   Main: undefined;
   Login: undefined;
@@ -66,15 +62,11 @@ type TabParamList = {
   Profile: undefined;
 };
 
-// ==============================
-// NAVIGATORS
-// ==============================
+// navigation
 const Stack = createNativeStackNavigator<RootStackParamList>();
 const Tab = createBottomTabNavigator<TabParamList>();
 
-// ==============================
-// TABS
-// ==============================
+// tabs
 function MainTabs() {
   const { darkMode } = useStore();
   const colors = getThemeColors(darkMode);
@@ -98,9 +90,7 @@ function MainTabs() {
   );
 }
 
-// ==============================
-// APP
-// ==============================
+// app entry point
 export default function App() {
   const { isAuthenticated, user, isUnlocked, darkMode } = useStore();
   const { loading } = useAuth();
@@ -133,7 +123,7 @@ export default function App() {
 
   const theme = darkMode ? CustomDarkTheme : CustomLightTheme;
 
-  // ---------- LOADING STATE ----------
+  // loading state while checking auth
   if (loading) {
     return (
       <View style={styles.loader}>
@@ -215,9 +205,7 @@ export default function App() {
   );
 }
 
-// ==============================
-// STYLES
-// ==============================
+// css
 const styles = StyleSheet.create({
   loader: {
     flex: 1,
