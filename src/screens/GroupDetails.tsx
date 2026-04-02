@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -8,141 +8,280 @@ import {
 import {
   useNavigation,
   useRoute,
-  useFocusEffect,
   NavigationProp,
 } from '@react-navigation/native';
-import Button from '../components/Button';
+import firestore from '@react-native-firebase/firestore';
+
 import { getCurrentTheme } from '../services/theme.service';
-import { expenseService } from '../services/expense.service';
 import { getBalances } from '../services/balance.service';
 import { getSettlements } from '../services/settlement.service';
 import { RootStackParamList } from '../types/navigation.types';
+import { useStore } from '../store/useStore';
 
 const GroupDetailScreen = () => {
   const navigation = useNavigation<NavigationProp<RootStackParamList>>();
   const route = useRoute();
 
-  const { group } = route.params as any;
+  const { groupId } = route.params as { groupId: string };
 
+  const [group, setGroup] = useState<any>(null);
   const [expenses, setExpenses] = useState<any[]>([]);
   const [balances, setBalances] = useState<any>({});
   const [settlements, setSettlements] = useState<any[]>([]);
+  const [usersMap, setUsersMap] = useState<Record<string, string>>({});
 
+  const { user } = useStore();
   const theme = getCurrentTheme();
 
-  async function load() {
-    if (!group?._id) return;
+  // ---------- FETCH GROUP ----------
+  useEffect(() => {
+    const unsub = firestore()
+      .collection('groups')
+      .doc(groupId)
+      .onSnapshot(doc => {
+        if (doc.exists()) {
+          setGroup({ _id: doc.id, ...doc.data() });
+        }
+      });
 
-    const exp = await expenseService.getGroupExpenses(group._id);
+    return unsub;
+  }, [groupId]);
 
-    console.log('FETCHED EXPENSES:', exp); // ✅ debug
+  // ---------- FETCH USERS (ID → NAME) ----------
+  useEffect(() => {
+    if (!group?.members?.length) return;
 
-    const bal = getBalances(group.members || [], exp);
-    const set = getSettlements(bal);
+    const unsub = firestore()
+      .collection('users')
+      .where('_id', 'in', group.members)
+      .onSnapshot(snapshot => {
+        const map: Record<string, string> = {};
 
-    setExpenses(exp);
-    setBalances(bal);
-    setSettlements(set);
+        snapshot.docs.forEach(doc => {
+          const data = doc.data();
+          map[data._id] = data.name;
+        });
+
+        setUsersMap(map);
+      });
+
+    return unsub;
+  }, [group]);
+
+  // ---------- FETCH EXPENSES ----------
+  useEffect(() => {
+    if (!group) return;
+
+    const unsub = firestore()
+      .collection('groups')
+      .doc(groupId)
+      .collection('expenses')
+      .orderBy('createdAt', 'desc')
+      .onSnapshot(snapshot => {
+        const exp = snapshot.docs.map(doc => ({
+          _id: doc.id,
+          ...(doc.data() as any),
+        }));
+
+        const bal = getBalances(group.members || [], exp);
+        const set = getSettlements(bal);
+
+        setExpenses(exp);
+        setBalances(bal);
+        setSettlements(set);
+      });
+
+    return unsub;
+  }, [groupId, group]);
+
+  if (!group) {
+    return <Text style={{ padding: 20 }}>Loading...</Text>;
   }
 
-  // ✅ FIX: always reload when screen focuses
-  useFocusEffect(
-    React.useCallback(() => {
-      load();
-    }, [group?._id])
-  );
+  // ---------- NAME MAPPER ----------
+  const getName = (id: string) => {
+    return usersMap[id] || id;
+  };
 
+  // ---------- SUMMARY ----------
+  const getSummary = () => {
+    if (!user) return { owe: 0, receive: 0 };
+
+    const myBalance = balances[user._id] || 0;
+
+    if (myBalance < 0) {
+      return { owe: Math.abs(myBalance), receive: 0 };
+    } else if (myBalance > 0) {
+      return { owe: 0, receive: myBalance };
+    } else {
+      return { owe: 0, receive: 0 };
+    }
+  };
+
+  const summary = getSummary();
+
+  // ---------- RENDER EXPENSE ----------
   const renderExpense = ({ item }: any) => (
-    <View style={styles.item}>
-      <Text style={{ color: theme.textPrimary }}>
-        ₹{item.amount}
-      </Text>
+    <View style={styles.row}>
+      
+      {/* DATE */}
+      <View style={styles.dateBox}>
+        <Text style={{ color: theme.textSecondary, fontSize: 12 }}>
+          {new Date(item.createdAt).toDateString().slice(4, 10)}
+        </Text>
+      </View>
 
-      <Text style={{ color: theme.textSecondary }}>
-        {item.description || 'No description'}
-      </Text>
+      {/* ICON */}
+      <View style={[styles.icon, { backgroundColor: theme.cardBackground }]}>
+        <Text>💰</Text>
+      </View>
+
+      {/* TEXT */}
+      <View style={{ flex: 1 }}>
+        <Text style={{ color: theme.textPrimary }}>
+          {getName(item.paidBy)} paid ₹{item.amount}
+        </Text>
+
+        <Text style={{ color: theme.textSecondary, marginTop: 3 }}>
+          {item.description || 'Expense'}
+        </Text>
+      </View>
     </View>
   );
 
   return (
     <View style={[styles.container, { backgroundColor: theme.background }]}>
-      
-      {/* TITLE */}
-      <Text style={[styles.title, { color: theme.textPrimary }]}>
-        {group?.name}
-      </Text>
 
-      {/* BALANCES */}
-      <Text style={[styles.section, { color: theme.textPrimary }]}>
-        Balances
-      </Text>
-
-      {Object.keys(balances).length === 0 ? (
+      {/* HEADER */}
+      <View style={styles.header}>
+        <Text style={[styles.title, { color: theme.textPrimary }]}>
+          {group.name}
+        </Text>
         <Text style={{ color: theme.textSecondary }}>
-          No balances yet
+          {group.members?.length || 0} people
         </Text>
-      ) : (
-        Object.entries(balances).map(([u, a]: any) => (
-          <Text key={u} style={{ color: theme.textPrimary }}>
-            {a > 0
-              ? `${u} gets ₹${a}`
-              : a < 0
-              ? `${u} owes ₹${-a}`
-              : `${u} settled`}
+      </View>
+
+      {/* SUMMARY */}
+      <View style={[styles.card, { backgroundColor: theme.cardBackground }]}>
+        {summary.owe > 0 && (
+          <Text style={{ color: theme.textPrimary }}>
+            You owe{' '}
+            <Text style={{ color: 'orange', fontWeight: 'bold' }}>
+              ₹{summary.owe}
+            </Text>
           </Text>
-        ))
-      )}
+        )}
 
-      {/* SETTLEMENTS */}
-      <Text style={[styles.section, { color: theme.textPrimary }]}>
-        Settle Up
-      </Text>
-
-      {settlements.length === 0 ? (
-        <Text style={{ color: theme.textSecondary }}>
-          Nothing to settle
-        </Text>
-      ) : (
-        settlements.map((s, i) => (
-          <Text key={i} style={{ color: theme.textPrimary }}>
-            {s.from} → {s.to} ₹{s.amount}
+        {summary.receive > 0 && (
+          <Text style={{ color: theme.textPrimary, marginTop: 5 }}>
+            You will receive{' '}
+            <Text style={{ color: 'green', fontWeight: 'bold' }}>
+              ₹{summary.receive}
+            </Text>
           </Text>
-        ))
-      )}
+        )}
 
-      {/* EXPENSE LIST */}
-      {expenses.length === 0 ? (
-        <Text style={{ color: theme.textSecondary, marginTop: 20 }}>
-          No expenses yet
-        </Text>
-      ) : (
-        <FlatList
-          data={expenses}
-          renderItem={renderExpense}
-          keyExtractor={(item) => item._id} // ✅ FIXED
-          contentContainerStyle={{ marginTop: 20 }}
-        />
-      )}
+        {summary.owe === 0 && summary.receive === 0 && (
+          <Text style={{ color: theme.textSecondary }}>
+            All settled
+          </Text>
+        )}
+      </View>
 
-      {/* ADD EXPENSE */}
-      <Button
-        title="Add Expense"
-        onPress={() =>
-          navigation.navigate('AddExpense', { group })
-        }
+      {/* ACTIONS */}
+      <View style={styles.actions}>
+        <View style={[styles.primaryBtn, { backgroundColor: theme.primary }]}>
+          <Text style={{ color: '#fff' }}>Settle up</Text>
+        </View>
+
+        <View style={[styles.secondaryBtn, { borderColor: theme.border }]}>
+          <Text style={{ color: theme.textPrimary }}>Balances</Text>
+        </View>
+      </View>
+
+      {/* LIST */}
+      <FlatList
+        data={expenses}
+        renderItem={renderExpense}
+        keyExtractor={(item) => item._id}
+        contentContainerStyle={{ marginTop: 20, paddingBottom: 100 }}
       />
+
+      {/* FLOAT BUTTON */}
+      <View style={styles.fabContainer}>
+        <View style={[styles.fab, { backgroundColor: theme.primary }]}>
+          <Text
+            style={{ color: '#fff', fontWeight: 'bold' }}
+            onPress={() => navigation.navigate('AddExpense', { groupId })}
+          >
+            + Add expense
+          </Text>
+        </View>
+      </View>
+
     </View>
   );
 };
 
 const styles = StyleSheet.create({
-  container: { flex: 1, padding: 20 },
-  title: { fontSize: 24, fontWeight: 'bold' },
-  section: { marginTop: 20, fontWeight: 'bold' },
-  item: {
+  container: { flex: 1, padding: 16 },
+
+  header: { marginBottom: 20 },
+
+  title: { fontSize: 28, fontWeight: 'bold' },
+
+  card: {
+    padding: 15,
+    borderRadius: 12,
+    marginBottom: 15,
+  },
+
+  actions: {
+    flexDirection: 'row',
+    gap: 10,
+    marginBottom: 10,
+  },
+
+  primaryBtn: {
     padding: 10,
-    borderBottomWidth: 1,
-    marginBottom: 5,
+    borderRadius: 8,
+  },
+
+  secondaryBtn: {
+    padding: 10,
+    borderRadius: 8,
+    borderWidth: 1,
+  },
+
+  row: {
+    flexDirection: 'row',
+    marginBottom: 15,
+  },
+
+  dateBox: {
+    width: 60,
+  },
+
+  icon: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 10,
+  },
+
+  fabContainer: {
+    position: 'absolute',
+    bottom: 20,
+    right: 20,
+  },
+
+  fab: {
+    paddingHorizontal: 20,
+    paddingVertical: 12,
+    borderRadius: 25,
   },
 });
 

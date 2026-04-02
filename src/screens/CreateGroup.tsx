@@ -46,7 +46,7 @@ const CreateGroupScreen = () => {
         description,
       });
 
-      navigation.navigate('GroupDetail', { group });
+      navigation.navigate('GroupDetail', { groupId: group._id });
     } catch (e) {
       console.error(e);
       Alert.alert('Error', 'Failed to create group');

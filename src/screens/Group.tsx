@@ -51,8 +51,7 @@ const GroupsScreen = () => {
     <TouchableOpacity
       style={[styles.groupCard, { backgroundColor: theme.cardBackground }]}
       onPress={() => {
-        console.log('CLICK GROUP:', item);
-        navigation.navigate('GroupDetail', { group: item });
+        navigation.navigate('GroupDetail', { groupId: item._id });
       }}
     >
       <View style={styles.groupHeader}>
@@ -75,7 +74,7 @@ const GroupsScreen = () => {
       <FlatList
         data={groups}
         renderItem={renderGroupItem}
-        keyExtractor={item => item._id} // ✅ fixed
+        keyExtractor={item => item._id} 
         contentContainerStyle={styles.listContainer}
         refreshControl={
           <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
