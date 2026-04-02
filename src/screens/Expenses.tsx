@@ -7,7 +7,9 @@ import {
   TouchableOpacity,
   RefreshControl,
 } from 'react-native';
-import { useNavigation } from '@react-navigation/native';
+import { useNavigation, useRoute } from '@react-navigation/native';
+import { RootStackParamList } from '../types/navigation.types';
+import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import Button from '../components/Button';
 import { formatCurrency, formatDate } from '../utils/format';
 import { getCurrentTheme } from '../services/theme.service';
@@ -15,48 +17,57 @@ import Screen from '../components/Screen';
 import { getFloatingButtonPosition } from '../utils/layout';
 import firestore from '@react-native-firebase/firestore';
 
+type NavProp = NativeStackNavigationProp<
+  RootStackParamList,
+  'Expenses'   
+>;
 const ExpensesScreen = () => {
   const [expenses, setExpenses] = useState<any[]>([]);
   const [refreshing, setRefreshing] = useState(false);
-  const navigation = useNavigation();
+
+  
+
+const navigation = useNavigation<NavProp>();
+  const route = useRoute();
+
+  const { groupId } = route.params as { groupId: string }; 
+
   const theme = getCurrentTheme();
 
-  // ---------- FETCH ----------
-  const fetchExpenses = async () => {
-    try {
-      const snap = await firestore()
-        .collection('expenses')
-        .orderBy('createdAt', 'desc')
-        .get();
+  // real-time listener for expenses in the group
+  useEffect(() => {
+    if (!groupId) return;
 
-      const data = snap.docs.map(doc => ({
-        _id: doc.id,
-        ...doc.data(),
-      }));
+    const unsubscribe = firestore()
+      .collection('groups')
+      .doc(groupId)
+      .collection('expenses')
+      .orderBy('createdAt', 'desc')
+      .onSnapshot(snapshot => {
+        const data = snapshot.docs.map(doc => ({
+          _id: doc.id,
+          ...doc.data(),
+        }));
 
-      setExpenses(data);
-    } catch (error) {
-      console.error('Error fetching expenses:', error);
-    }
-  };
+        console.log('LIVE UPDATE:', data.length);
+        setExpenses(data);
+      });
 
+    return unsubscribe;
+  }, [groupId]);
+
+  // refresh handler (optional since we have real-time updates, but good for manual refresh)
   const onRefresh = async () => {
     setRefreshing(true);
-    await fetchExpenses();
     setRefreshing(false);
   };
 
-  useEffect(() => {
-    fetchExpenses();
-  }, []);
-
-  // ---------- NAV ----------
+  // navigate to AddExpense screen
   const handleAddExpense = () => {
-    // @ts-ignore
-    navigation.navigate('AddExpense', { group: null });
+    navigation.navigate('AddExpense', { groupId });
   };
 
-  // ---------- UI ----------
+  // ui for each expense item
   const renderExpenseItem = ({ item }: { item: any }) => (
     <TouchableOpacity
       style={[styles.expenseItem, { backgroundColor: theme.cardBackground }]}
@@ -72,7 +83,7 @@ const ExpensesScreen = () => {
 
       <View style={styles.expenseFooter}>
         <Text style={[styles.expenseGroup, { color: theme.textSecondary }]}>
-          {item.groupId || 'No group'}
+          {groupId} 
         </Text>
         <Text style={[styles.expenseDate, { color: theme.textSecondary }]}>
           {formatDate(item.createdAt)}
@@ -116,7 +127,7 @@ const ExpensesScreen = () => {
   );
 };
 
-// ---------- STYLES ----------
+// styles
 const styles = StyleSheet.create({
   listContainer: {
     padding: 20,

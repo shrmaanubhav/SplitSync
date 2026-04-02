@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -14,27 +14,42 @@ import { getCurrentTheme } from '../services/theme.service';
 import Screen from '../components/Screen';
 import ExpenseSplitSelector from '../components/ExpenseSplitSelector';
 import { expenseService } from '../services/expense.service';
+import firestore from '@react-native-firebase/firestore';
 
 const AddExpenseScreen = () => {
   const navigation = useNavigation();
   const route = useRoute();
-  const params = route.params as { group?: any };
-  const group = params?.group;
+  const { groupId } = route.params as { groupId: string };
 
   const { user } = useStore();
   const theme = getCurrentTheme();
 
+  const [group, setGroup] = useState<any>(null);
   const [description, setDescription] = useState('');
   const [amount, setAmount] = useState('');
   const [splits, setSplits] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
 
+  // ---------- FETCH GROUP ----------
+  useEffect(() => {
+    const unsubscribe = firestore()
+      .collection('groups')
+      .doc(groupId)
+      .onSnapshot(doc => {
+        if (doc.exists()) {
+          setGroup({ _id: doc.id, ...doc.data() });
+        }
+      });
+
+    return unsubscribe;
+  }, [groupId]);
+
   // ---------- GUARD ----------
-  if (!group || !group._id) {
+  if (!group) {
     return (
       <View style={{ padding: 20 }}>
         <Text style={{ color: theme.textPrimary }}>
-          Invalid group data
+          Loading group...
         </Text>
       </View>
     );
@@ -54,7 +69,6 @@ const AddExpenseScreen = () => {
       return;
     }
 
-    // ✅ SAFE PARTICIPANTS
     const participants =
       splits.length > 0
         ? splits.map(s => s.id || s._id).filter(Boolean)
@@ -69,8 +83,8 @@ const AddExpenseScreen = () => {
       setLoading(true);
 
       await expenseService.createExpense({
-        groupId: group._id,
-        paidBy: user._id, // ✅ safe
+        groupId,
+        paidBy: user._id,
         amount: amt,
         participants,
       });
