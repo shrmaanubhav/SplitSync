@@ -1,6 +1,5 @@
 export type Expense = {
   id: string;
-  groupId: string;
   paidBy: string;
   amount: number;
   participants: string[];
@@ -29,11 +28,11 @@ export function calculateBalances(
   users: string[],
   expenses: Expense[]
 ): BalanceMap {
-  const balances: BalanceMap = {};
+  const balancesCents: Record<string, number> = {};
 
   // init
   for (const u of users) {
-    balances[u] = 0;
+    balancesCents[u] = 0;
   }
 
   for (const exp of expenses) {
@@ -41,15 +40,30 @@ export function calculateBalances(
 
     if (!participants.length) continue;
 
-    const share = amount / participants.length;
+    const total = Math.round(amount * 100); // convert to cents
+    const n = participants.length;
 
-    // payer gets full credit
-    balances[paidBy] = (balances[paidBy] || 0) + amount;
+    const base = Math.floor(total / n); // base share in cents
+    let remainder = total - base * n;   // leftover cents
 
-    // each participant owes share
-    for (const user of participants) {
-      balances[user] = (balances[user] || 0) - share;
+    // payer gets full amount
+    balancesCents[paidBy] += total;
+
+    // distribute shares
+    for (let i = 0; i < n; i++) {
+      const u = participants[i];
+
+      const extra = remainder > 0 ? 1 : 0; // 1 cent adjustment
+      balancesCents[u] -= (base + extra);
+
+      if (remainder > 0) remainder--;
     }
+  }
+
+  // convert back to rupees
+  const balances: BalanceMap = {};
+  for (const u in balancesCents) {
+    balances[u] = balancesCents[u] / 100;
   }
 
   return balances;
