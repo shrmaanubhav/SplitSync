@@ -7,7 +7,6 @@ import {
   TextInput,
   Alert,
   ScrollView,
-  Switch,
 } from 'react-native';
 import { getCurrentTheme } from '../services/theme.service';
 import Avatar from './Avatar';
@@ -16,7 +15,6 @@ interface SplitParticipant {
   id: string;
   name: string;
   amount: string;
-  percentage?: string;
 }
 
 interface ExpenseSplitSelectorProps {
@@ -38,58 +36,29 @@ const ExpenseSplitSelector: React.FC<ExpenseSplitSelectorProps> = ({
   const [participants, setParticipants] = useState<SplitParticipant[]>([]);
   const [splitType, setSplitType] = useState<'equal' | 'unequal'>('equal');
   const [showMemberSelector, setShowMemberSelector] = useState(false);
-  const [includePaidByUser, setIncludePaidByUser] = useState(true);
 
-  // Initialize participants with group members
+  // Recalculate equal splits whenever the total or participant count changes
   useEffect(() => {
-    if (groupMembers.length > 0) {
-      updateParticipantsList();
+    if (splitType === 'equal' && participants.length > 0) {
+      const equalShare = totalAmount / participants.length;
+      const updatedParticipants = participants.map(participant => ({
+        ...participant,
+        amount: equalShare.toFixed(2),
+      }));
+      
+      // Prevent infinite loops by checking if the math actually changed
+      const currentAmounts = participants.map(p => p.amount).join();
+      const newAmounts = updatedParticipants.map(p => p.amount).join();
+      
+      if (currentAmounts !== newAmounts) {
+        setParticipants(updatedParticipants);
+      }
     }
-  }, [groupMembers, paidById, includePaidByUser]);
+  }, [totalAmount, participants.length, splitType]);
 
-  // Update splits when participants or amounts change
   useEffect(() => {
-    // Only update if we have participants
-    if (participants.length > 0) {
-      onSplitsChange(participants);
-    }
+    onSplitsChange(participants);
   }, [participants]);
-
-  const updateParticipantsList = () => {
-    // Filter members based on whether to include the payer
-    const membersToInclude = includePaidByUser
-      ? groupMembers
-      : groupMembers.filter(member => member._id !== paidById);
-
-    // Create participant objects with empty amounts for unequal split mode
-    const newParticipants = membersToInclude.map(member => ({
-      id: member._id || member,                // ✅ handles string
-      name: member.name || 'User',             // ✅ fallback
-      amount: splitType === 'equal' ? '0.00' : '',
-    }));
-
-    setParticipants(newParticipants);
-
-    // If we have participants and in equal split mode, split equally
-    if (newParticipants.length > 0 && splitType === 'equal') {
-      splitEqually(newParticipants, totalAmount);
-    }
-  };
-
-  const splitEqually = (
-    participantsList: SplitParticipant[],
-    amount: number
-  ) => {
-    if (participantsList.length === 0) return;
-
-    const equalShare = amount / participantsList.length;
-    const updatedParticipants = participantsList.map(participant => ({
-      ...participant,
-      amount: equalShare.toFixed(2),
-    }));
-
-    setParticipants(updatedParticipants);
-  };
 
   const updateParticipantAmount = (id: string, amount: string) => {
     const updatedParticipants = participants.map(participant =>
@@ -98,40 +67,27 @@ const ExpenseSplitSelector: React.FC<ExpenseSplitSelectorProps> = ({
     setParticipants(updatedParticipants);
   };
 
-  const addParticipant = (member: any) => {
-    const newParticipant: SplitParticipant = {
-      id: member._id,
-      name: member.name,
-      amount: splitType === 'equal' ? '0.00' : '', // Empty for unequal, 0 for equal
-    };
-
-    const updatedParticipants = [...participants, newParticipant];
-    setParticipants(updatedParticipants);
-
-    // Recalculate equal split when adding a participant
-    if (splitType === 'equal') {
-      splitEqually(updatedParticipants, totalAmount);
+const addParticipant = (member: any) => {
+    if (participants.some(p => p.id === (member.id || member._id || member))) {
+      setShowMemberSelector(false);
+      return;
     }
 
+    const newParticipant: SplitParticipant = {
+      id: member.id || member._id || member, 
+      name: member.name || 'User',
+      amount: splitType === 'equal' ? '0.00' : '', 
+    };
+
+    setParticipants([...participants, newParticipant]);
     setShowMemberSelector(false);
   };
 
   const removeParticipant = (id: string) => {
-    // Prevent removing the last participant
-    if (participants.length <= 1) {
-      Alert.alert('Error', 'At least one participant is required');
-      return;
-    }
-
     const updatedParticipants = participants.filter(
       participant => participant.id !== id
     );
     setParticipants(updatedParticipants);
-
-    // Recalculate equal split when removing a participant
-    if (splitType === 'equal') {  
-      splitEqually(updatedParticipants, totalAmount);
-    }
   };
 
   const calculateTotalSplit = () => {
@@ -141,38 +97,18 @@ const ExpenseSplitSelector: React.FC<ExpenseSplitSelectorProps> = ({
     );
   };
 
-  const toggleSplitType = () => {
-    const newType = splitType === 'equal' ? 'unequal' : 'equal';
-    setSplitType(newType);
-
-    // Reset amounts when toggling split type
-    const updatedParticipants = participants.map(participant => ({
-      ...participant,
-      amount: newType === 'equal' ? '0.00' : '', // Empty for unequal, 0 for equal
-    }));
-
-    setParticipants(updatedParticipants);
-
-    if (newType === 'equal') {
-      splitEqually(updatedParticipants, totalAmount);
-    }
-  };
-
-  const toggleIncludePaidByUser = () => {
-    setIncludePaidByUser(!includePaidByUser);
-  };
-
   const totalSplit = calculateTotalSplit();
   const difference = Math.abs(totalSplit - totalAmount);
 
   const renderMemberItem = (item: any) => (
     <TouchableOpacity
+      key={item.id || item._id || item} 
       style={[styles.memberItem, { borderBottomColor: theme.border }]}
       onPress={() => addParticipant(item)}
     >
-      <Avatar name={item.name} size={40} />
+      <Avatar name={item.name || 'User'} size={40} />
       <Text style={[styles.memberName, { color: theme.textPrimary }]}>
-        {item.name}
+        {item.name || 'User'}
       </Text>
     </TouchableOpacity>
   );
@@ -192,7 +128,6 @@ const ExpenseSplitSelector: React.FC<ExpenseSplitSelectorProps> = ({
         </Text>
       </View>
 
-      {/* Only show input field when in unequal split mode */}
       {splitType === 'unequal' ? (
         <TextInput
           style={[
@@ -215,20 +150,17 @@ const ExpenseSplitSelector: React.FC<ExpenseSplitSelectorProps> = ({
         </Text>
       )}
 
-      {(participant.id !== paidById || !includePaidByUser) && (
-        <TouchableOpacity
-          style={[styles.removeButton, { backgroundColor: theme.danger }]}
-          onPress={() => removeParticipant(participant.id)}
-        >
-          <Text style={styles.removeText}>×</Text>
-        </TouchableOpacity>
-      )}
+      <TouchableOpacity
+        style={[styles.removeButton, { backgroundColor: theme.danger }]}
+        onPress={() => removeParticipant(participant.id)}
+      >
+        <Text style={styles.removeText}>×</Text>
+      </TouchableOpacity>
     </View>
   );
 
-  // Get available members to add (not already selected)
   const availableMembers = groupMembers.filter(
-    member => !participants.some(p => p.id === member._id)
+    member => !participants.some(p => p.id === (member.id || member._id || member))
   );
 
   return (
@@ -243,33 +175,57 @@ const ExpenseSplitSelector: React.FC<ExpenseSplitSelectorProps> = ({
         <Text style={[styles.label, { color: theme.textPrimary }]}>
           Split Among
         </Text>
-        <TouchableOpacity onPress={toggleSplitType}>
-          <Text style={[styles.splitTypeText, { color: theme.primary }]}>
-            {splitType === 'equal' ? 'Equal Split' : 'Unequal Split'}
-          </Text>
-        </TouchableOpacity>
-      </View>
-
-      <View style={styles.includeToggleContainer}>
-        <Text style={[styles.includeToggleText, { color: theme.textPrimary }]}>
-          Include me in split
-        </Text>
-        <Switch
-          value={includePaidByUser}
-          onValueChange={toggleIncludePaidByUser}
-          trackColor={{ false: theme.border, true: theme.primary }}
-          thumbColor={includePaidByUser ? theme.primaryLight : '#FFFFFF'}
-        />
+        
+        {/* Custom Segmented Pill Toggle */}
+        <View style={styles.toggleContainer}>
+          <TouchableOpacity
+            style={[
+              styles.toggleOption,
+              splitType === 'equal' && { backgroundColor: theme.primary },
+            ]}
+            onPress={() => setSplitType('equal')}
+          >
+            <Text
+              style={[
+                styles.toggleText,
+                { color: splitType === 'equal' ? '#FFFFFF' : theme.textSecondary },
+              ]}
+            >
+              Equal
+            </Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[
+              styles.toggleOption,
+              splitType === 'unequal' && { backgroundColor: theme.primary },
+            ]}
+            onPress={() => setSplitType('unequal')}
+          >
+            <Text
+              style={[
+                styles.toggleText,
+                { color: splitType === 'unequal' ? '#FFFFFF' : theme.textSecondary },
+              ]}
+            >
+              Unequal
+            </Text>
+          </TouchableOpacity>
+        </View>
       </View>
 
       {difference > 0.01 && splitType === 'unequal' && totalAmount > 0 && (
         <Text style={[styles.warningText, { color: '#FF9500' }]}>
-          Split amounts must sum to total amount (difference:{' '}
+          Split amounts must sum to total amount (Difference:{' '}
           {difference.toFixed(2)})
         </Text>
       )}
 
       <View style={styles.participantsContainer}>
+        {participants.length === 0 && (
+          <Text style={{ color: theme.textSecondary, marginBottom: 15, fontStyle: 'italic' }}>
+            No members selected yet.
+          </Text>
+        )}
         {participants.map(renderParticipant)}
       </View>
 
@@ -320,32 +276,31 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 10,
+    marginBottom: 20,
   },
   label: {
     fontSize: 16,
     fontWeight: '600',
   },
-  splitTypeText: {
+  toggleContainer: {
+    flexDirection: 'row',
+    backgroundColor: 'rgba(0,0,0,0.05)',
+    borderRadius: 8,
+    padding: 4,
+  },
+  toggleOption: {
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+    borderRadius: 6,
+  },
+  toggleText: {
     fontSize: 14,
     fontWeight: '600',
-  },
-  includeToggleContainer: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 15,
-    padding: 10,
-    borderRadius: 8,
-    backgroundColor: 'rgba(0, 0, 0, 0.05)',
-  },
-  includeToggleText: {
-    fontSize: 16,
-    fontWeight: '500',
   },
   warningText: {
     fontSize: 14,
     marginBottom: 10,
+    fontWeight: '500',
   },
   participantsContainer: {
     marginBottom: 10,
@@ -397,7 +352,7 @@ const styles = StyleSheet.create({
     padding: 15,
     alignItems: 'center',
     borderRadius: 8,
-    marginTop: 10,
+    marginTop: 5,
   },
   addText: {
     color: '#FFFFFF',

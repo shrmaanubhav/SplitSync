@@ -4,15 +4,18 @@ export type Expense = {
   id: string;
   paidBy: string;
   amount: number;
-  participants: string[];
-  createdAt: number;
+  // ✅ FIX 1: Updated to expect the math array instead of string array
+  participants: { userId: string; amountOwed: number }[];
+  // ✅ FIX 2: Relaxed from 'number' to 'any' to accept Firebase Timestamps
+  createdAt: any; 
 };
 
 type CreateExpenseInput = {
   groupId: string;
   paidBy: string;
   amount: number;
-  participants: string[];
+  participants: { userId: string; amountOwed: number }[];
+  description: string; 
 };
 
 export const expenseService = {
@@ -28,7 +31,8 @@ export const expenseService = {
       paidBy: data.paidBy,
       amount: data.amount,
       participants: data.participants,
-      createdAt: Date.now(),
+      // ✅ FIX 3: Replaced Date.now() with Firebase's native timestamp
+      createdAt: firestore.Timestamp.now(), 
     };
 
     await docRef.set(expense);
