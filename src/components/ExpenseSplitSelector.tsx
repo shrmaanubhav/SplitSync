@@ -69,7 +69,7 @@ const ExpenseSplitSelector: React.FC<ExpenseSplitSelectorProps> = ({
 
 const addParticipant = (member: any) => {
     if (participants.some(p => p.id === (member.id || member._id || member))) {
-      setShowMemberSelector(false);
+      // setShowMemberSelector(false);
       return;
     }
 
@@ -80,7 +80,7 @@ const addParticipant = (member: any) => {
     };
 
     setParticipants([...participants, newParticipant]);
-    setShowMemberSelector(false);
+    // setShowMemberSelector(false);
   };
 
   const removeParticipant = (id: string) => {
@@ -360,20 +360,18 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   memberSelector: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
+    
+    marginTop: 10,
     borderRadius: 12,
     padding: 15,
-    zIndex: 10,
+    borderWidth: 1,
+    borderColor: 'rgba(150, 150, 150, 0.2)', 
   },
   memberSelectorHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 15,
+    marginBottom: 10, 
   },
   memberSelectorTitle: {
     fontSize: 18,
@@ -384,6 +382,7 @@ const styles = StyleSheet.create({
   },
   memberList: {
     flex: 1,
+    maxHeight: 250,
   },
   memberItem: {
     flexDirection: 'row',

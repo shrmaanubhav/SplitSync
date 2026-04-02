@@ -2,11 +2,10 @@ import firestore from '@react-native-firebase/firestore';
 
 export type Expense = {
   id: string;
+  description: string; 
   paidBy: string;
   amount: number;
-  // ✅ FIX 1: Updated to expect the math array instead of string array
   participants: { userId: string; amountOwed: number }[];
-  // ✅ FIX 2: Relaxed from 'number' to 'any' to accept Firebase Timestamps
   createdAt: any; 
 };
 
@@ -28,10 +27,10 @@ export const expenseService = {
 
     const expense: Expense = {
       id: docRef.id,
+      description: data.description, 
       paidBy: data.paidBy,
       amount: data.amount,
       participants: data.participants,
-      // ✅ FIX 3: Replaced Date.now() with Firebase's native timestamp
       createdAt: firestore.Timestamp.now(), 
     };
 
