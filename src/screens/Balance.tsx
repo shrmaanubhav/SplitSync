@@ -10,7 +10,6 @@ import {
   RefreshControl,
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
-import Button from '../components/Button';
 import { formatCurrency } from '../utils/format';
 import { getCurrentTheme } from '../services/theme.service';
 import Screen from '../components/Screen';
@@ -20,11 +19,11 @@ const BalancesScreen = () => {
   const [balances, setBalances] = useState<any>(null);
   const [refreshing, setRefreshing] = useState(false);
   const navigation = useNavigation<any>();
+  const { user } = useStore();
   const theme = getCurrentTheme();
 
   const fetchBalances = async () => {
     try {
-      const user = useStore.getState().user;
       if (!user) return;
 
       const groupsSnap = await firestore().collection('groups').get();
@@ -36,8 +35,9 @@ const BalancesScreen = () => {
         const groupId = g.id;
         const groupData = g.data();
 
-        // skip groups user is not part of
-        if (!groupData.members?.includes(user._id)) continue;
+        const currentUserId = user._id;
+
+        if (!groupData.members?.includes(currentUserId)) continue;
 
         const expSnap = await firestore()
           .collection('groups')
@@ -46,19 +46,18 @@ const BalancesScreen = () => {
           .get();
 
         const expenses = expSnap.docs.map(doc => {
-        const data = doc.data();
-
-        return {
-          id: doc.id,
-          paidBy: data.paidBy,  
-          amount: data.amount,
-          participants: data.participants || [],
-          createdAt: data.createdAt || Date.now(),
-        };
-      });
+          const data = doc.data();
+          return {
+            id: doc.id,
+            paidBy: data.paidBy,
+            amount: data.amount,
+            participants: data.participants || [],
+            createdAt: data.createdAt || Date.now(),
+          };
+        });
 
         const bal = getBalances(groupData.members || [], expenses);
-        const myBalance = bal[user._id] || 0;
+        const myBalance = bal[currentUserId] || 0;
 
         overall += myBalance;
 
@@ -66,8 +65,6 @@ const BalancesScreen = () => {
           groupId,
           groupName: groupData.name || 'Group',
           netBalance: myBalance,
-          totalDue: myBalance < 0 ? Math.abs(myBalance) : 0,
-          totalOwed: myBalance > 0 ? myBalance : 0,
         });
       }
 
@@ -80,132 +77,113 @@ const BalancesScreen = () => {
     }
   };
 
+  useEffect(() => {
+    fetchBalances();
+  }, []);
+
   const onRefresh = async () => {
     setRefreshing(true);
     await fetchBalances();
     setRefreshing(false);
   };
 
-  useEffect(() => {
-    fetchBalances();
-  }, []);
+  const renderItem = ({ item }: any) => {
+    const isZero = Math.abs(item.netBalance) < 0.01;
+    const isPositive = item.netBalance > 0.01;
 
-  const renderBalanceItem = ({ item }: { item: any }) => (
-    <TouchableOpacity
-      style={[styles.balanceItem, { backgroundColor: theme.cardBackground }]}
-      onPress={() =>
-        navigation.navigate('GroupDetail', { groupId: item.groupId })
-      }
-    >
-      <View style={styles.balanceHeader}>
-        <Text style={[styles.groupName, { color: theme.textPrimary }]}>
-          {item.groupName}
-        </Text>
-        <Text
-          style={[
-            styles.netBalance,
-            item.netBalance >= 0 ? styles.positive : styles.negative,
-          ]}
-        >
-          {formatCurrency(item.netBalance)}
-        </Text>
-      </View>
+    return (
+      <TouchableOpacity
+        activeOpacity={0.7}
+        onPress={() => navigation.navigate('GroupDetail', { groupId: item.groupId })}
+        style={[
+          styles.card,
+          {
+            backgroundColor: theme.cardBackground,
+            borderColor: theme.border,
+          },
+        ]}
+      >
+        <View style={styles.cardContent}>
+          {/* LEFT SIDE: Name & Status */}
+          <View style={styles.cardLeft}>
+            <Text style={[styles.groupName, { color: theme.textPrimary }]}>
+              {item.groupName}
+            </Text>
+            <Text style={[styles.status, { color: theme.textSecondary }]}>
+              {isZero
+                ? 'All settled up'
+                : isPositive
+                ? `You are owed ${formatCurrency(item.netBalance)}`
+                : `You owe ${formatCurrency(Math.abs(item.netBalance))}`}
+            </Text>
+          </View>
 
-      <View style={styles.balanceDetails}>
-        <Text style={[styles.balanceText, { color: theme.textSecondary }]}>
-          You owe: {formatCurrency(item.totalDue)}
-        </Text>
-        <Text style={[styles.balanceText, { color: theme.textSecondary }]}>
-          You're owed: {formatCurrency(item.totalOwed)}
-        </Text>
-      </View>
-
-      <Button
-        title="Settle Up"
-        onPress={() =>
-          navigation.navigate('GroupDetail', { groupId: item.groupId })
-        }
-        variant="secondary"
-        style={styles.settleButton}
-      />
-    </TouchableOpacity>
-  );
+          {/* RIGHT SIDE: Amount & Action */}
+          <View style={styles.cardRight}>
+            {/* The actual money stays green/red for clear accounting */}
+            <Text
+              style={[
+                styles.amount,
+                { color: isZero ? theme.textTertiary : isPositive ? '#4CD964' : '#FF3B30' },
+              ]}
+            >
+              {formatCurrency(Math.abs(item.netBalance))}
+            </Text>
+            
+            {/* ✅ The interactive action text uses your primary Orange theme */}
+            {!isZero && (
+              <Text style={[styles.actionText, { color: theme.primary }]}>
+                {isPositive ? 'View ▸' : 'Settle ▸'}
+              </Text>
+            )}
+          </View>
+        </View>
+      </TouchableOpacity>
+    );
+  };
 
   return (
     <Screen>
       <View style={[styles.container, { backgroundColor: theme.background }]}>
-        {balances ? (
+        {balances && (
           <>
+            {/* ✅ BRANDED SUMMARY CARD: Solid Orange Background with Crisp White Text */}
             <View
               style={[
-                styles.summaryCard,
-                { backgroundColor: theme.cardBackground },
+                styles.summary,
+                { 
+                  backgroundColor: theme.primary,
+                  shadowColor: theme.primary,
+                },
               ]}
             >
-              <Text style={[styles.summaryTitle, { color: theme.textPrimary }]}>
+              <Text style={[styles.summaryTitle, { color: 'rgba(255, 255, 255, 0.85)' }]}>
                 Overall Balance
               </Text>
 
-              <Text
-                style={[
-                  styles.summaryAmount,
-                  balances.overallBalance >= 0
-                    ? styles.positive
-                    : styles.negative,
-                ]}
-              >
-                {formatCurrency(balances.overallBalance)}
+              <Text style={[styles.summaryAmount, { color: '#FFFFFF' }]}>
+                {formatCurrency(Math.abs(balances.overallBalance))}
               </Text>
 
-              <Text
-                style={[
-                  styles.summaryDescription,
-                  { color: theme.textSecondary },
-                ]}
-              >
-                {balances.overallBalance >= 0
-                  ? "You're owed this amount in total"
+              <Text style={{ color: 'rgba(255, 255, 255, 0.9)', fontSize: 13, fontWeight: '500' }}>
+                {Math.abs(balances.overallBalance) < 0.01
+                  ? "You're all settled up 🎉"
+                  : balances.overallBalance > 0
+                  ? 'You are owed this amount in total'
                   : 'You owe this amount in total'}
               </Text>
             </View>
 
             <FlatList
               data={balances.balances}
-              renderItem={renderBalanceItem}
-              keyExtractor={item => item.groupId}
-              contentContainerStyle={styles.listContainer}
+              renderItem={renderItem}
+              keyExtractor={i => i.groupId}
+              contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 100 }}
               refreshControl={
-                <RefreshControl
-                  refreshing={refreshing}
-                  onRefresh={onRefresh}
-                  colors={[theme.primary]}
-                />
-              }
-              ListEmptyComponent={
-                <View style={styles.emptyContainer}>
-                  <Text
-                    style={[styles.emptyText, { color: theme.textPrimary }]}
-                  >
-                    No balances yet
-                  </Text>
-                  <Text
-                    style={[
-                      styles.emptySubtext,
-                      { color: theme.textSecondary },
-                    ]}
-                  >
-                    Start sharing expenses to see your balances
-                  </Text>
-                </View>
+                <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
               }
             />
           </>
-        ) : (
-          <View style={styles.loadingContainer}>
-            <Text style={{ color: theme.textPrimary }}>
-              Loading balances...
-            </Text>
-          </View>
         )}
       </View>
     </Screen>
@@ -215,94 +193,68 @@ const BalancesScreen = () => {
 const styles = StyleSheet.create({
   container: { flex: 1 },
 
-  summaryCard: {
-    borderRadius: 12,
-    padding: 20,
-    margin: 20,
+  summary: {
+    marginHorizontal: 16,
+    marginTop: 16,
+    marginBottom: 20,
+    padding: 24,
+    borderRadius: 20,
     alignItems: 'center',
-    elevation: 5,
+    // Gives the orange card a nice subtle glow on iOS
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.25,
+    shadowRadius: 10,
+    elevation: 8,
   },
-
   summaryTitle: {
-    fontSize: 18,
-    fontWeight: '600',
-    marginBottom: 10,
+    fontSize: 14,
+    fontWeight: '700',
+    textTransform: 'uppercase',
+    letterSpacing: 0.8,
   },
-
   summaryAmount: {
-    fontSize: 32,
-    fontWeight: 'bold',
-    marginVertical: 10,
+    fontSize: 36,
+    fontWeight: '800',
+    marginVertical: 8,
   },
 
-  positive: { color: '#4CD964' },
-  negative: { color: '#FF3B30' },
-
-  summaryDescription: {
-    fontSize: 16,
-    textAlign: 'center',
+  card: {
+    borderRadius: 16,
+    padding: 18,
+    marginBottom: 12,
+    borderWidth: 1,
   },
-
-  listContainer: {
-    paddingHorizontal: 20,
-  },
-
-  balanceItem: {
-    borderRadius: 12,
-    padding: 20,
-    marginBottom: 15,
-    elevation: 3,
-  },
-
-  balanceHeader: {
+  cardContent: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    marginBottom: 15,
-  },
-
-  groupName: {
-    fontSize: 20,
-    fontWeight: 'bold',
-  },
-
-  netBalance: {
-    fontSize: 20,
-    fontWeight: 'bold',
-  },
-
-  balanceDetails: {
-    marginBottom: 15,
-  },
-
-  balanceText: {
-    fontSize: 16,
-    marginBottom: 5,
-  },
-
-  settleButton: {
-    alignSelf: 'flex-start',
-  },
-
-  emptyContainer: {
     alignItems: 'center',
-    paddingTop: 50,
   },
-
-  emptyText: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    marginBottom: 10,
-  },
-
-  emptySubtext: {
-    fontSize: 16,
-    textAlign: 'center',
-  },
-
-  loadingContainer: {
+  cardLeft: {
     flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
+    paddingRight: 10,
+  },
+  cardRight: {
+    alignItems: 'flex-end',
+  },
+  groupName: {
+    fontSize: 17,
+    fontWeight: '700',
+    marginBottom: 6,
+  },
+  status: {
+    fontSize: 14,
+    fontWeight: '500',
+  },
+  amount: {
+    fontSize: 18,
+    fontWeight: '800',
+  },
+  actionText: {
+    fontSize: 13,
+    fontWeight: '700',
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+    marginTop: 6,
   },
 });
 

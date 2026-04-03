@@ -25,7 +25,7 @@ import CreateGroupScreen from './src/screens/CreateGroup';
 import FriendsScreen from './src/screens/Friends';
 import SelectPeopleScreen from './src/screens/SelectPeople';
 import CategorySelectorScreen from './src/screens/CategorySelector';
-import SettleScreen from './src/screens/Settle';
+import SettleScreen from './src/screens/SettleUp';
 
 // Components / services
 import { useStore } from './src/store/useStore';
