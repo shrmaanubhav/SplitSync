@@ -4,6 +4,7 @@ import {
   Text,
   StyleSheet,
   FlatList,
+  TouchableOpacity,
 } from 'react-native';
 import {
   useNavigation,
@@ -17,6 +18,7 @@ import { getBalances } from '../services/balance.service';
 import { getSettlements } from '../services/settlement.service';
 import { RootStackParamList } from '../types/navigation.types';
 import { useStore } from '../store/useStore';
+import navigation from '../navigation';
 
 const GroupDetailScreen = () => {
   const navigation = useNavigation<NavigationProp<RootStackParamList>>();
@@ -118,7 +120,29 @@ const GroupDetailScreen = () => {
     }
   };
 
+  
+
   const summary = getSummary();
+
+  const handleSettleUp = () => {
+    if (!user) return;
+
+    const myPay = settlements.filter(s => s.from === user._id);
+    const myReceive = settlements.filter(s => s.to === user._id);
+
+    navigation.navigate('SettleScreen', {
+      groupId: groupId,
+      payList: myPay,
+      receiveList: myReceive,
+    });
+  };
+
+  // const handleBalances = () => {
+  //   navigation.navigate('BalancesScreen', {
+  //     groupId: groupId,
+  //     balances: balances,
+  //   }); 
+  // };
 
   // ---------- RENDER EXPENSE ----------
   const renderExpense = ({ item }: any) => (
@@ -191,13 +215,19 @@ const GroupDetailScreen = () => {
 
       {/* ACTIONS */}
       <View style={styles.actions}>
-        <View style={[styles.primaryBtn, { backgroundColor: theme.primary }]}>
+        <TouchableOpacity
+          style={[styles.primaryBtn, { backgroundColor: theme.primary }]}
+          onPress={handleSettleUp}
+        >
           <Text style={{ color: '#fff' }}>Settle up</Text>
-        </View>
+        </TouchableOpacity>
 
-        <View style={[styles.secondaryBtn, { borderColor: theme.border }]}>
+        {/* <TouchableOpacity
+          style={[styles.secondaryBtn, { borderColor: theme.border }]}
+          onPress={handleBalances}
+        >
           <Text style={{ color: theme.textPrimary }}>Balances</Text>
-        </View>
+        </TouchableOpacity> */}
       </View>
 
       {/* LIST */}
@@ -223,6 +253,7 @@ const GroupDetailScreen = () => {
     </View>
   );
 };
+
 
 const styles = StyleSheet.create({
   container: { flex: 1, padding: 16 },
