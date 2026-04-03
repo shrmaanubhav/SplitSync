@@ -25,6 +25,7 @@ import CreateGroupScreen from './src/screens/CreateGroup';
 import FriendsScreen from './src/screens/Friends';
 import SelectPeopleScreen from './src/screens/SelectPeople';
 import CategorySelectorScreen from './src/screens/CategorySelector';
+import SettleScreen from './src/screens/Settle';
 
 // Components / services
 import { useStore } from './src/store/useStore';
@@ -35,7 +36,7 @@ import ThemeProvider from './src/components/ThemeProvider';
 import { SelectionProvider } from './src/contexts/SelectionContext';
 import { ExpenseCategory } from './src/data/categories';
 
-// navigation types/params
+// ---------- TYPES ----------
 export type RootStackParamList = {
   Main: undefined;
   Login: undefined;
@@ -44,13 +45,24 @@ export type RootStackParamList = {
   EditProfile: undefined;
   CreateGroup: undefined;
 
-  GroupDetail: any;
-  AddExpense: any;
+  GroupDetail: { groupId: string };
+  AddExpense: { groupId: string };
   SelectPeople: any;
 
   CategorySelector: {
     onSelectCategory: (category: ExpenseCategory) => void;
     selectedCategory?: ExpenseCategory;
+  };
+
+  SettleScreen: {
+    groupId: string;
+    payList: any[];
+    receiveList: any[];
+  };
+
+  BalancesScreen: {
+    groupId: string;
+    balances: any;
   };
 };
 
@@ -66,7 +78,7 @@ type TabParamList = {
 const Stack = createNativeStackNavigator<RootStackParamList>();
 const Tab = createBottomTabNavigator<TabParamList>();
 
-// tabs
+// ---------- TABS ----------
 function MainTabs() {
   const { darkMode } = useStore();
   const colors = getThemeColors(darkMode);
@@ -83,14 +95,14 @@ function MainTabs() {
     >
       <Tab.Screen name="Dashboard" component={DashboardScreen} />
       <Tab.Screen name="Groups" component={GroupsScreen} />
-      <Tab.Screen name="Expenses" component={ExpensesScreen} />
+      {/* <Tab.Screen name="Expenses" component={ExpensesScreen} /> */}
       <Tab.Screen name="Balances" component={BalancesScreen} />
       <Tab.Screen name="Profile" component={ProfileScreen} />
     </Tab.Navigator>
   );
 }
 
-// app entry point
+// ---------- APP ----------
 export default function App() {
   const { isAuthenticated, user, isUnlocked, darkMode } = useStore();
   const { loading } = useAuth();
@@ -123,7 +135,6 @@ export default function App() {
 
   const theme = darkMode ? CustomDarkTheme : CustomLightTheme;
 
-  // loading state while checking auth
   if (loading) {
     return (
       <View style={styles.loader}>
@@ -150,45 +161,66 @@ export default function App() {
                   component={MainTabs}
                   options={{ headerShown: false }}
                 />
+
                 <Stack.Screen
                   name="GroupDetail"
                   component={GroupDetailScreen}
                   options={{ title: 'Group Details' }}
                 />
+
                 <Stack.Screen
                   name="Settings"
                   component={SettingsScreen}
                   options={{ title: 'Settings' }}
                 />
+
                 <Stack.Screen
                   name="Friends"
                   component={FriendsScreen}
                   options={{ title: 'Friends' }}
                 />
+
                 <Stack.Screen
                   name="EditProfile"
                   component={EditProfileScreen}
                   options={{ title: 'Edit Profile' }}
                 />
+
                 <Stack.Screen
                   name="AddExpense"
                   component={AddExpenseScreen}
                   options={{ title: 'Add Expense' }}
                 />
+
                 <Stack.Screen
                   name="CategorySelector"
                   component={CategorySelectorScreen}
                   options={{ title: 'Select Category' }}
                 />
+
                 <Stack.Screen
                   name="CreateGroup"
                   component={CreateGroupScreen}
                   options={{ title: 'Create Group' }}
                 />
+
                 <Stack.Screen
                   name="SelectPeople"
                   component={SelectPeopleScreen}
                   options={{ title: 'Select People', headerShown: false }}
+                />
+
+                {/* ✅ NEW SCREENS */}
+                <Stack.Screen
+                  name="SettleScreen"
+                  component={SettleScreen}
+                  options={{ title: 'Settle Up' }}
+                />
+
+                <Stack.Screen
+                  name="BalancesScreen"
+                  component={BalancesScreen}
+                  options={{ title: 'Balances' }}
                 />
               </>
             ) : (
@@ -205,7 +237,7 @@ export default function App() {
   );
 }
 
-// css
+// ---------- STYLES ----------
 const styles = StyleSheet.create({
   loader: {
     flex: 1,

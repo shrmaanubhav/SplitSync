@@ -6,15 +6,12 @@ import {
   Text,
   Platform,
   Animated,
+  Dimensions, // ✅ Added Dimensions
 } from 'react-native';
 import { BottomTabBarProps } from '@react-navigation/bottom-tabs';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
-// Replaced Reanimated with RN Animated to avoid native module crash
 import { getCurrentTheme } from '../services/theme.service';
 
-// Export constants for consistent spacing across the app
-// Total height calculation: vertical padding (10*2) + icon size (26) + indicator (4) + spacing = ~50
-// With additional padding and border radius, actual height is ~70
 export const FLOATING_TAB_BAR_HEIGHT = 70;
 export const FLOATING_TAB_BAR_BOTTOM_MARGIN = 24;
 export const FLOATING_TAB_BAR_VERTICAL_PADDING = 10;
@@ -41,6 +38,15 @@ const FloatingTabBar: React.FC<BottomTabBarProps> = ({
 
   // Indicator position animation
   const indicatorPosition = React.useRef(new Animated.Value(0)).current;
+  
+  // ✅ EXACT PIXEL MATH FOR PERFECT ALIGNMENT
+  const totalTabs = state.routes.length;
+  const { width: SCREEN_WIDTH } = Dimensions.get('window');
+  const TAB_BAR_WIDTH = SCREEN_WIDTH * 0.94; // 94% width from styles
+  const INNER_WIDTH = TAB_BAR_WIDTH - 32; // Minus paddingHorizontal (16 * 2)
+  const TAB_WIDTH = INNER_WIDTH / totalTabs;
+  const INDICATOR_WIDTH = 36;
+  const INITIAL_LEFT = 16 + (TAB_WIDTH / 2) - (INDICATOR_WIDTH / 2);
 
   React.useEffect(() => {
     // Fade in and slide up the tab bar when component mounts
@@ -77,9 +83,7 @@ const FloatingTabBar: React.FC<BottomTabBarProps> = ({
       }
     });
 
-    // Cleanup function to stop animations
     return () => {
-      // Stop all animations when component unmounts
       state.routes.forEach((_, index) => {
         pulseAnimations[index].stopAnimation();
       });
@@ -97,7 +101,6 @@ const FloatingTabBar: React.FC<BottomTabBarProps> = ({
     // Update pulse animations when tab changes
     state.routes.forEach((_, index) => {
       if (state.index === index) {
-        // Restart pulsing for active tab
         pulseAnimations[index].stopAnimation(() => {
           Animated.loop(
             Animated.sequence([
@@ -112,18 +115,16 @@ const FloatingTabBar: React.FC<BottomTabBarProps> = ({
                 useNativeDriver: true,
               }),
             ]),
-            { iterations: -1 } // Infinite loop
+            { iterations: -1 }
           ).start();
         });
       } else {
-        // Stop pulsing for inactive tabs
         pulseAnimations[index].stopAnimation(() => {
           pulseAnimations[index].setValue(0);
         });
       }
     });
 
-    // Cleanup function
     return () => {
       state.routes.forEach((_, index) => {
         pulseAnimations[index].removeAllListeners();
@@ -150,20 +151,21 @@ const FloatingTabBar: React.FC<BottomTabBarProps> = ({
           },
         ]}
       >
-        {/* Single persistent indicator that moves between tabs */}
+        {/* ✅ FIXED INDICATOR WITH EXACT MATH */}
         <Animated.View
           style={{
             position: 'absolute',
             bottom: 4,
-            width: 36,
+            left: INITIAL_LEFT,
+            width: INDICATOR_WIDTH,
             height: 4,
             borderRadius: 2,
             backgroundColor: theme.primary,
             transform: [
               {
                 translateX: indicatorPosition.interpolate({
-                  inputRange: [0, 1, 2, 3, 4],
-                  outputRange: [0, 1, 2, 3, 4].map(i => i * 70), // 70px per tab spacing
+                  inputRange: state.routes.map((_, i) => i),
+                  outputRange: state.routes.map((_, i) => i * TAB_WIDTH),
                 }),
               },
             ],
@@ -183,7 +185,6 @@ const FloatingTabBar: React.FC<BottomTabBarProps> = ({
               outputRange: [0.6, 1],
             });
 
-            // Pulse effect for active tab
             const pulseScale = pulseAnimations[index].interpolate({
               inputRange: [0, 1],
               outputRange: [1, 1.05],
@@ -197,7 +198,6 @@ const FloatingTabBar: React.FC<BottomTabBarProps> = ({
               });
 
               if (!isFocused && !event.defaultPrevented) {
-                // Add bounce animation when switching tabs
                 Animated.sequence([
                   Animated.timing(animatedValues[index], {
                     toValue: 1,
@@ -246,59 +246,40 @@ const FloatingTabBar: React.FC<BottomTabBarProps> = ({
                         size: 26,
                       })
                     ) : (
-                      // Default icons based on route name
                       <>
                         {route.name === 'Dashboard' && (
                           <Icon
                             name={isFocused ? 'home' : 'home-outline'}
                             size={26}
-                            color={
-                              isFocused ? theme.primary : theme.textTertiary
-                            }
+                            color={isFocused ? theme.primary : theme.textTertiary}
                           />
                         )}
                         {route.name === 'Groups' && (
                           <Icon
-                            name={
-                              isFocused
-                                ? 'account-multiple'
-                                : 'account-multiple-outline'
-                            }
+                            name={isFocused ? 'account-multiple' : 'account-multiple-outline'}
                             size={26}
-                            color={
-                              isFocused ? theme.primary : theme.textTertiary
-                            }
+                            color={isFocused ? theme.primary : theme.textTertiary}
                           />
                         )}
                         {route.name === 'Expenses' && (
                           <Icon
-                            name={
-                              isFocused
-                                ? 'currency-usd'
-                                : 'currency-usd'
-                            }
+                            name={isFocused ? 'currency-usd' : 'currency-usd'}
                             size={26}
-                            color={
-                              isFocused ? theme.primary : theme.textTertiary
-                            }
+                            color={isFocused ? theme.primary : theme.textTertiary}
                           />
                         )}
                         {route.name === 'Balances' && (
                           <Icon
                             name={isFocused ? 'scale-balance' : 'scale-balance'}
                             size={26}
-                            color={
-                              isFocused ? theme.primary : theme.textTertiary
-                            }
+                            color={isFocused ? theme.primary : theme.textTertiary}
                           />
                         )}
                         {route.name === 'Profile' && (
                           <Icon
                             name={isFocused ? 'account' : 'account-outline'}
                             size={26}
-                            color={
-                              isFocused ? theme.primary : theme.textTertiary
-                            }
+                            color={isFocused ? theme.primary : theme.textTertiary}
                           />
                         )}
                       </>
@@ -330,18 +311,14 @@ const styles = StyleSheet.create({
     paddingVertical: FLOATING_TAB_BAR_VERTICAL_PADDING,
     paddingHorizontal: 16,
     width: '94%',
-    shadowOffset: {
-      width: 0,
-      height: 6,
-    },
+    shadowOffset: { width: 0, height: 6 },
     shadowOpacity: 0.3,
     shadowRadius: 12,
     elevation: 16,
-    // Add border for better definition
     borderWidth: 0.5,
     borderColor: 'rgba(0, 0, 0, 0.05)',
-    position: 'relative', // Add relative positioning for absolute indicator
-    overflow: 'visible', // Allow indicator to be visible outside padding
+    position: 'relative', 
+    overflow: 'visible', 
   },
   tab: {
     flex: 1,
@@ -352,13 +329,6 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     padding: 12,
     borderRadius: 20,
-  },
-  indicator: {
-    position: 'absolute',
-    bottom: 4,
-    width: 36,
-    height: 4,
-    borderRadius: 2,
   },
 });
 
