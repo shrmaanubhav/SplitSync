@@ -11,42 +11,69 @@ import {
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import Button from '../components/Button';
-// import { balanceService } from '../services/balance.service';
 import { formatCurrency } from '../utils/format';
 import { getCurrentTheme } from '../services/theme.service';
 import Screen from '../components/Screen';
+import { getBalances } from '../services/balance.service';
 
 const BalancesScreen = () => {
   const [balances, setBalances] = useState<any>(null);
   const [refreshing, setRefreshing] = useState(false);
-  const navigation = useNavigation();
+  const navigation = useNavigation<any>();
   const theme = getCurrentTheme();
 
   const fetchBalances = async () => {
     try {
       const user = useStore.getState().user;
-      const snap = await firestore().collection('expenses').get();
+      if (!user) return;
 
-      let totalOwed = 0;
-      let totalDue = 0;
+      const groupsSnap = await firestore().collection('groups').get();
 
-      snap.docs.forEach(doc => {
-        const exp = doc.data();
-        exp.splits.forEach((s: any) => {
-          if (s.userId === user?._id) {
-            totalDue += s.amount;
-          }
-        });
+      let overall = 0;
+      const result: any[] = [];
 
-        if (exp.paidBy === user?._id) {
-          totalOwed += exp.amount;
-        }
+      for (const g of groupsSnap.docs) {
+        const groupId = g.id;
+        const groupData = g.data();
+
+        // skip groups user is not part of
+        if (!groupData.members?.includes(user._id)) continue;
+
+        const expSnap = await firestore()
+          .collection('groups')
+          .doc(groupId)
+          .collection('expenses')
+          .get();
+
+        const expenses = expSnap.docs.map(doc => {
+        const data = doc.data();
+
+        return {
+          id: doc.id,
+          paidBy: data.paidBy,  
+          amount: data.amount,
+          participants: data.participants || [],
+          createdAt: data.createdAt || Date.now(),
+        };
       });
 
-      const overallBalance = totalOwed - totalDue;
+        const bal = getBalances(groupData.members || [], expenses);
+        const myBalance = bal[user._id] || 0;
+
+        overall += myBalance;
+
+        result.push({
+          groupId,
+          groupName: groupData.name || 'Group',
+          netBalance: myBalance,
+          totalDue: myBalance < 0 ? Math.abs(myBalance) : 0,
+          totalOwed: myBalance > 0 ? myBalance : 0,
+        });
+      }
+
       setBalances({
-        overallBalance,
-        balances: [], // group-level later
+        overallBalance: overall,
+        balances: result,
       });
     } catch (e) {
       console.error(e);
@@ -66,6 +93,9 @@ const BalancesScreen = () => {
   const renderBalanceItem = ({ item }: { item: any }) => (
     <TouchableOpacity
       style={[styles.balanceItem, { backgroundColor: theme.cardBackground }]}
+      onPress={() =>
+        navigation.navigate('GroupDetail', { groupId: item.groupId })
+      }
     >
       <View style={styles.balanceHeader}>
         <Text style={[styles.groupName, { color: theme.textPrimary }]}>
@@ -80,6 +110,7 @@ const BalancesScreen = () => {
           {formatCurrency(item.netBalance)}
         </Text>
       </View>
+
       <View style={styles.balanceDetails}>
         <Text style={[styles.balanceText, { color: theme.textSecondary }]}>
           You owe: {formatCurrency(item.totalDue)}
@@ -88,9 +119,12 @@ const BalancesScreen = () => {
           You're owed: {formatCurrency(item.totalOwed)}
         </Text>
       </View>
+
       <Button
         title="Settle Up"
-        onPress={() => {}}
+        onPress={() =>
+          navigation.navigate('GroupDetail', { groupId: item.groupId })
+        }
         variant="secondary"
         style={styles.settleButton}
       />
@@ -111,6 +145,7 @@ const BalancesScreen = () => {
               <Text style={[styles.summaryTitle, { color: theme.textPrimary }]}>
                 Overall Balance
               </Text>
+
               <Text
                 style={[
                   styles.summaryAmount,
@@ -121,6 +156,7 @@ const BalancesScreen = () => {
               >
                 {formatCurrency(balances.overallBalance)}
               </Text>
+
               <Text
                 style={[
                   styles.summaryDescription,
@@ -177,98 +213,92 @@ const BalancesScreen = () => {
 };
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-  },
+  container: { flex: 1 },
+
   summaryCard: {
     borderRadius: 12,
     padding: 20,
     margin: 20,
     alignItems: 'center',
-    shadowColor: '#000',
-    shadowOffset: {
-      width: 0,
-      height: 2,
-    },
-    shadowOpacity: 0.1,
-    shadowRadius: 3.84,
     elevation: 5,
   },
+
   summaryTitle: {
     fontSize: 18,
     fontWeight: '600',
     marginBottom: 10,
   },
+
   summaryAmount: {
     fontSize: 32,
     fontWeight: 'bold',
     marginVertical: 10,
   },
-  positive: {
-    color: '#4CD964',
-  },
-  negative: {
-    color: '#FF3B30',
-  },
+
+  positive: { color: '#4CD964' },
+  negative: { color: '#FF3B30' },
+
   summaryDescription: {
     fontSize: 16,
     textAlign: 'center',
   },
+
   listContainer: {
     paddingHorizontal: 20,
   },
+
   balanceItem: {
     borderRadius: 12,
     padding: 20,
     marginBottom: 15,
-    shadowColor: '#000',
-    shadowOffset: {
-      width: 0,
-      height: 2,
-    },
-    shadowOpacity: 0.1,
-    shadowRadius: 3.84,
-    elevation: 5,
+    elevation: 3,
   },
+
   balanceHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    alignItems: 'center',
     marginBottom: 15,
   },
+
   groupName: {
     fontSize: 20,
     fontWeight: 'bold',
   },
+
   netBalance: {
     fontSize: 20,
     fontWeight: 'bold',
   },
+
   balanceDetails: {
     marginBottom: 15,
   },
+
   balanceText: {
     fontSize: 16,
     marginBottom: 5,
   },
+
   settleButton: {
     alignSelf: 'flex-start',
   },
+
   emptyContainer: {
-    flex: 1,
-    justifyContent: 'center',
     alignItems: 'center',
     paddingTop: 50,
   },
+
   emptyText: {
     fontSize: 20,
     fontWeight: 'bold',
     marginBottom: 10,
   },
+
   emptySubtext: {
     fontSize: 16,
     textAlign: 'center',
   },
+
   loadingContainer: {
     flex: 1,
     justifyContent: 'center',
