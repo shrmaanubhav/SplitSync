@@ -8,14 +8,14 @@ import {
 } from 'react-native';
 
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
-import { RootStackParamList } from '../../App'; // adjust path if needed
+import { RootStackParamList } from '../../App'; 
 
 import { expenseCategories, ExpenseCategory } from '../data/categories';
 import CategoryIcon from '../components/CategoryIcon';
 import Screen from '../components/Screen';
 import { getCurrentTheme } from '../services/theme.service';
 
-// FIXED typing
+// fixed typing
 type Props = NativeStackScreenProps<
   RootStackParamList,
   'CategorySelector'

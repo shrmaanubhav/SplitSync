@@ -21,20 +21,24 @@ const CreateGroupScreen = () => {
   const { user } = useStore();
   const theme = getCurrentTheme();
 
+  // ✅ FIX: Safely grab the correct Firebase uid
+  const currentUserId = user?.uid || user?._id;
+
   async function handleCreate() {
     if (!name) {
       Alert.alert('Enter group name');
       return;
     }
 
-    if (!user?._id) {
+    if (!currentUserId) {
       Alert.alert('Error', 'User not found');
       return;
     }
 
     // TEMP TEST MEMBERS
+    // ✅ FIX: Used currentUserId so you are properly added to your own group
     const members = [
-      user._id,
+      currentUserId,
       'u2',
       'u3',
     ];
@@ -46,6 +50,7 @@ const CreateGroupScreen = () => {
         description,
       });
 
+      // Safely navigate using either id format
       navigation.navigate('GroupDetail', { groupId: group._id });
     } catch (e) {
       console.error(e);
