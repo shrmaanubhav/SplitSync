@@ -33,7 +33,6 @@ const LoginScreen = () => {
   const theme = getCurrentTheme();
   const { setUser, setUnlocked, user } = useStore();
 
-  // ---------- SESSION CHECK ----------
   useEffect(() => {
     const checkSession = async () => {
       try {
@@ -43,7 +42,9 @@ const LoginScreen = () => {
         if (fbUser) {
           const doc = await firestore().collection('users').doc(fbUser.uid).get();
           if (doc.exists()) {
-            setUser(doc.data() as any);
+            const userData = doc.data();
+            setUser(userData as any);
+            setName(userData?.name || ''); 
             if (savedPin) {
               setStep('pin');
             } else {
@@ -62,7 +63,6 @@ const LoginScreen = () => {
     checkSession();
   }, []);
 
-  // ---------- AUTH LOGIC ----------
   const handleSendOTP = async () => {
     if (phone.length < 10) {
       Alert.alert('Invalid Phone Number', 'Please enter a valid 10-digit phone number.');
@@ -70,7 +70,7 @@ const LoginScreen = () => {
     }
     try {
       setLoading(true);
-      await authService.sendOTP(phone);
+      await authService.sendOTP(`+91${phone}`);
       setOtpSent(true);
     } catch (e: any) {
       Alert.alert('Error', 'Unable to send OTP. Please check your network connection.');
@@ -84,11 +84,12 @@ const LoginScreen = () => {
       setLoading(true);
       const fbUser = await authService.verifyOTP(otp);
       if (!fbUser) throw new Error('Verification failed');
-
       const doc = await firestore().collection('users').doc(fbUser.uid).get();
       if (doc.exists()) {
-        setUser(doc.data() as any);
-        setStep('pin');
+        const userData = doc.data();
+        setUser(userData as any);
+        setName(userData?.name || '');
+        setStep('setup'); 
       } else {
         setStep('setup');
       }
@@ -99,14 +100,13 @@ const LoginScreen = () => {
     }
   };
 
-  // ---------- SECURITY LOGIC ----------
   const handlePinUnlock = async () => {
     const savedPin = await authService.getSavedPin();
     if (pin === savedPin) {
       setUnlocked(true);
     } else {
       setPin('');
-      Alert.alert('Incorrect PIN', 'The PIN entered does not match your security records.');
+      Alert.alert('Incorrect PIN', 'The PIN entered does not match our records.');
     }
   };
 
@@ -115,33 +115,35 @@ const LoginScreen = () => {
       if (!name.trim() || pin.length < 4) {
         throw new Error('Please provide your full name and a 4-digit security PIN.');
       }
-      
       setLoading(true);
       const fbUser = authService.getCurrentUser();
       const uid = fbUser?.uid;
       const phoneNumber = fbUser?.phoneNumber;
-
       if (!uid) throw new Error('Session expired. Please restart the process.');
-
       await authService.savePin(pin);
-
-      const newUser = {
+      const updatedUser = {
         _id: uid,
         name: name.trim(),
         phoneNumber: phoneNumber || '', 
-        currency: 'INR',
-        friends: [],
-        createdAt: Date.now(),
+        currency: user?.currency || 'INR',
+        friends: user?.friends || [],
+        createdAt: user?.createdAt || Date.now(),
       };
-
-      await firestore().collection('users').doc(uid).set(newUser);
-      setUser(newUser as any);
+      await firestore().collection('users').doc(uid).set(updatedUser, { merge: true });
+      setUser(updatedUser as any);
       setUnlocked(true);
     } catch (e: any) {
       Alert.alert('Setup Error', e.message);
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleResetFlow = () => {
+    setOtpSent(false);
+    setOtp('');
+    setPhone('');
+    setStep('auth');
   };
 
   if (initialChecking) {
@@ -153,30 +155,19 @@ const LoginScreen = () => {
   }
 
   return (
-    <KeyboardAvoidingView 
-      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-      style={{ flex: 1 }}
-    >
-      <ScrollView 
-        contentContainerStyle={[styles.container, { backgroundColor: theme.background }]}
-        keyboardShouldPersistTaps="handled"
-      >
+    <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={{ flex: 1 }}>
+      <ScrollView contentContainerStyle={[styles.container, { backgroundColor: theme.background }]} keyboardShouldPersistTaps="handled">
         <View style={styles.header}>
-          {/* VISUAL ELEMENT */}
           <View style={[styles.iconCircle, { backgroundColor: theme.primary + '15' }]}>
-            <Text style={styles.emoji}>
-              {step === 'auth' ? '🪙' : step === 'pin' ? '🛡️' : '👤'}
-            </Text>
+            <Text style={styles.emoji}>{step === 'auth' ? '🪙' : step === 'pin' ? '🛡️' : '👤'}</Text>
           </View>
-          
           <Text style={[styles.title, { color: theme.textPrimary }]}>
             {step === 'pin' ? `Welcome back, ${user?.name?.split(' ')[0] || 'User'}` : 
-             step === 'setup' ? 'Create Account' : 'Welcome to SplitSync'}
+             step === 'setup' ? (user ? 'Reset Security PIN' : 'Create Account') : 'Welcome to SplitSync'}
           </Text>
-          
           <Text style={[styles.subtitle, { color: theme.textSecondary }]}>
-            {step === 'pin' ? 'Enter your security PIN to access your vault.' : 
-             step === 'setup' ? 'Complete your profile details to get started.' : 
+            {step === 'pin' ? 'Enter your security PIN to unlock the app.' : 
+             step === 'setup' ? 'Set a 4-digit PIN to protect your account.' : 
              'Expense splitting, synchronized.'}
           </Text>
         </View>
@@ -184,14 +175,21 @@ const LoginScreen = () => {
         <View style={styles.form}>
           {step === 'auth' && (
             <View style={styles.inputWrapper}>
-              <TextInput
-                style={[styles.input, { backgroundColor: theme.cardBackground, color: theme.textPrimary, borderColor: theme.border }]}
-                placeholder="Phone Number"
-                placeholderTextColor={theme.textTertiary}
-                value={phone}
-                onChangeText={setPhone}
-                keyboardType="phone-pad"
-              />
+              {/* NEW: Professional Phone Input with +91 Prefix */}
+              <View style={[styles.phoneInputRow, { backgroundColor: theme.cardBackground, borderColor: theme.border }]}>
+                <Text style={[styles.prefix, { color: theme.textPrimary }]}>+91</Text>
+                <View style={[styles.divider, { backgroundColor: theme.border }]} />
+                <TextInput
+                  style={[styles.flexInput, { color: theme.textPrimary }]}
+                  placeholder="Phone Number"
+                  placeholderTextColor={theme.textTertiary}
+                  value={phone}
+                  onChangeText={setPhone}
+                  keyboardType="phone-pad"
+                  maxLength={10}
+                />
+              </View>
+
               {otpSent && (
                 <TextInput
                   style={[styles.input, { backgroundColor: theme.cardBackground, color: theme.textPrimary, borderColor: theme.border }]}
@@ -203,11 +201,7 @@ const LoginScreen = () => {
                   maxLength={6}
                 />
               )}
-              <Button
-                title={otpSent ? "Verify Code" : "Continue"}
-                onPress={otpSent ? handleVerifyOTP : handleSendOTP}
-                loading={loading}
-              />
+              <Button title={otpSent ? "Verify & Continue" : "Continue"} onPress={otpSent ? handleVerifyOTP : handleSendOTP} loading={loading} />
             </View>
           )}
 
@@ -224,30 +218,26 @@ const LoginScreen = () => {
                 secureTextEntry
               />
               <Button title="Unlock App" onPress={handlePinUnlock} />
-              <TouchableOpacity 
-                style={styles.forgotBtn} 
-                onPress={() => {
-                  setOtpSent(false);
-                  setStep('auth');
-                }}
-              >
-                <Text style={{ color: theme.primary, fontWeight: '700' }}>Forgot PIN or Change User?</Text>
+              <TouchableOpacity style={styles.forgotBtn} onPress={handleResetFlow}>
+                <Text style={{ color: theme.primary, fontWeight: '700', textAlign: 'center' }}>Forgot PIN or Change User?</Text>
               </TouchableOpacity>
             </View>
           )}
 
           {step === 'setup' && (
             <View style={styles.inputWrapper}>
+              {!user && (
+                <TextInput
+                  style={[styles.input, { backgroundColor: theme.cardBackground, color: theme.textPrimary, borderColor: theme.border }]}
+                  placeholder="Full Name"
+                  placeholderTextColor={theme.textTertiary}
+                  value={name}
+                  onChangeText={setName}
+                />
+              )}
               <TextInput
                 style={[styles.input, { backgroundColor: theme.cardBackground, color: theme.textPrimary, borderColor: theme.border }]}
-                placeholder="Full Name"
-                placeholderTextColor={theme.textTertiary}
-                value={name}
-                onChangeText={setName}
-              />
-              <TextInput
-                style={[styles.input, { backgroundColor: theme.cardBackground, color: theme.textPrimary, borderColor: theme.border }]}
-                placeholder="Create Security PIN"
+                placeholder="Create 4-Digit PIN"
                 placeholderTextColor={theme.textTertiary}
                 value={pin}
                 onChangeText={setPin}
@@ -255,7 +245,7 @@ const LoginScreen = () => {
                 maxLength={4}
                 secureTextEntry
               />
-              <Button title="Complete Setup" onPress={handleSetup} loading={loading} />
+              <Button title="Set Security PIN" onPress={handleSetup} loading={loading} />
             </View>
           )}
         </View>
@@ -265,70 +255,24 @@ const LoginScreen = () => {
 };
 
 const styles = StyleSheet.create({
-  loaderContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  container: { 
-    flexGrow: 1, 
-    padding: 30, 
-    justifyContent: 'center' 
-  },
-  header: { 
-    alignItems: 'center', 
-    marginBottom: 40 
-  },
-  iconCircle: {
-    width: 100,
-    height: 100,
-    borderRadius: 50,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginBottom: 20,
-  },
-  emoji: { 
-    fontSize: 48, 
-  },
-  title: { 
-    fontSize: 28, 
-    fontWeight: '900', 
-    textAlign: 'center', 
-    marginBottom: 8 
-  },
-  subtitle: { 
-    fontSize: 16, 
-    textAlign: 'center', 
-    lineHeight: 22, 
-    paddingHorizontal: 20,
-    fontWeight: '500'
-  },
-  form: { 
-    width: '100%' 
-  },
-  inputWrapper: { 
-    gap: 16 
-  },
-  input: {
-    height: 60,
-    borderRadius: 16,
-    paddingHorizontal: 20,
-    fontSize: 16,
-    borderWidth: 1,
-  },
-  pinInput: {
-    height: 75,
-    borderRadius: 20,
-    textAlign: 'center',
-    fontSize: 36,
-    fontWeight: 'bold',
-    borderWidth: 1,
-    letterSpacing: 15,
-  },
-  forgotBtn: { 
-    alignSelf: 'center', 
-    marginTop: 20 
-  },
+  loaderContainer: { flex: 1, justifyContent: 'center', alignItems: 'center' },
+  container: { flexGrow: 1, padding: 30, justifyContent: 'center' },
+  header: { alignItems: 'center', marginBottom: 40 },
+  iconCircle: { width: 100, height: 100, borderRadius: 50, justifyContent: 'center', alignItems: 'center', marginBottom: 20 },
+  emoji: { fontSize: 48 },
+  title: { fontSize: 28, fontWeight: '900', textAlign: 'center', marginBottom: 8 },
+  subtitle: { fontSize: 16, textAlign: 'center', lineHeight: 22, paddingHorizontal: 20, fontWeight: '500' },
+  form: { width: '100%' },
+  inputWrapper: { gap: 16 },
+  input: { height: 60, borderRadius: 16, paddingHorizontal: 20, fontSize: 16, borderWidth: 1 },
+  // Row for Phone + Prefix
+  phoneInputRow: { height: 60, borderRadius: 16, borderHorizontal: 20, borderWidth: 1, flexDirection: 'row', alignItems: 'center', paddingHorizontal: 15 },
+  prefix: { fontSize: 16, fontWeight: '700', paddingRight: 10 },
+  divider: { width: 1, height: '60%', marginHorizontal: 10 },
+  flexInput: { flex: 1, height: '100%', fontSize: 16 },
+  // PIN Styles
+  pinInput: { height: 75, borderRadius: 20, textAlign: 'center', fontSize: 36, fontWeight: 'bold', borderWidth: 1, letterSpacing: 15 },
+  forgotBtn: { alignSelf: 'center', marginTop: 25 },
 });
 
 export default LoginScreen;

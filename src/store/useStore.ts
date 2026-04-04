@@ -12,6 +12,7 @@ interface User {
   currency: string;
   createdAt?: number;
   bio?: string;
+  friends?:string[];
 }
 
 interface Group {
