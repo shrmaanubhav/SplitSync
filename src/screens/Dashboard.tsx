@@ -26,7 +26,6 @@ const DashboardScreen: React.FC = () => {
   const [totalSpent, setTotalSpent] = useState(0);
   const [recentExpenses, setRecentExpenses] = useState<any[]>([]);
 
-  // Safely grab the correct ID format
   const currentUserId = user?.uid || user?._id;
 
   const fetchDashboardData = async () => {
@@ -66,7 +65,7 @@ const DashboardScreen: React.FC = () => {
         const bal = getBalances(groupData.members || [], expenses as any);
         calcOverallBalance += (bal[currentUserId] || 0);
 
-        // Calculate exactly how much the user has spent (their share)
+        // Calculate exactly how much the user has spent 
         expenses.forEach(exp => {
           const myParticipantData = (exp.participants || []).find((p: any) => 
             (p.userId && p.userId === currentUserId) || p === currentUserId
@@ -83,7 +82,7 @@ const DashboardScreen: React.FC = () => {
         });
       }
 
-      // 3. Sort expenses by date to get the 3 most recent
+      // 3. Sort expenses by date to get the 5 most recent
       allExpenses.sort((a, b) => {
         const dateA = a.createdAt?.toMillis ? a.createdAt.toMillis() : a.createdAt;
         const dateB = b.createdAt?.toMillis ? b.createdAt.toMillis() : b.createdAt;
@@ -92,7 +91,7 @@ const DashboardScreen: React.FC = () => {
 
       setOverallBalance(calcOverallBalance);
       setTotalSpent(calcTotalSpent);
-      setRecentExpenses(allExpenses.slice(0, 3)); // Keep top 3
+      setRecentExpenses(allExpenses.slice(0, 5)); // Keep top 5
       
     } catch (error) {
       console.error("Failed to fetch dashboard data:", error);
@@ -111,7 +110,6 @@ const DashboardScreen: React.FC = () => {
   return (
     <Screen scroll>
       <ScrollView contentContainerStyle={styles.scrollContent}>
-        {/* WELCOME */}
         <Text style={[styles.welcomeText, { color: theme.textPrimary }]}>
           Welcome, {user?.name?.split(' ')[0] || 'User'}!
         </Text>
@@ -120,7 +118,7 @@ const DashboardScreen: React.FC = () => {
           <ActivityIndicator size="large" color={theme.primary} style={{ marginTop: 40 }} />
         ) : (
           <>
-            {/* HERO BALANCE CARD (Branded Orange) */}
+            {/* HERO BALANCE CARD */}
             <View style={[styles.heroCard, { backgroundColor: theme.primary }]}>
               <Text style={styles.heroTitle}>Overall Balance</Text>
               
@@ -144,11 +142,9 @@ const DashboardScreen: React.FC = () => {
               </Text>
 
               <View style={styles.buttonRow}>
-                {/* Outlined Button for Add Expense */}
                 <TouchableOpacity
                   activeOpacity={0.8}
                   style={[styles.actionBtnOutline, { borderColor: theme.primary }]}
-                  // 👇 Navigates directly to your fixed CreateGroupScreen
                   onPress={() => navigation.navigate('CreateGroup')} 
                 >
                   <Text style={[styles.actionBtnTextOutline, { color: theme.primary }]}>
@@ -156,7 +152,6 @@ const DashboardScreen: React.FC = () => {
                   </Text>
                 </TouchableOpacity>
 
-                {/* Solid Button for Settle Up */}
                 <TouchableOpacity
                   activeOpacity={0.8}
                   style={[styles.actionBtnSolid, { backgroundColor: theme.primary }]}
@@ -224,7 +219,7 @@ const DashboardScreen: React.FC = () => {
 
 const styles = StyleSheet.create({
   scrollContent: {
-    paddingBottom: 100, // Room for the floating tab bar
+    paddingBottom: 20, 
   },
   welcomeText: {
     fontSize: 28,

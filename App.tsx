@@ -15,7 +15,6 @@ import LoginScreen from './src/screens/Login';
 import DashboardScreen from './src/screens/Dashboard';
 import GroupsScreen from './src/screens/Group';
 import GroupDetailScreen from './src/screens/GroupDetails';
-import ExpensesScreen from './src/screens/Expenses';
 import BalancesScreen from './src/screens/Balance';
 import ProfileScreen from './src/screens/Profile';
 import EditProfileScreen from './src/screens/EditProfile';
@@ -24,7 +23,6 @@ import AddExpenseScreen from './src/screens/AddExpense';
 import CreateGroupScreen from './src/screens/CreateGroup';
 import FriendsScreen from './src/screens/Friends';
 import SelectPeopleScreen from './src/screens/SelectPeople';
-import CategorySelectorScreen from './src/screens/CategorySelector';
 import SettleScreen from './src/screens/SettleUp';
 
 // Components / services
@@ -34,9 +32,8 @@ import { getThemeColors } from './src/services/theme.service';
 import FloatingTabBar from './src/components/FloatingTabBar';
 import ThemeProvider from './src/components/ThemeProvider';
 import { SelectionProvider } from './src/contexts/SelectionContext';
-import { ExpenseCategory } from './src/data/categories';
 
-// ---------- TYPES ----------
+// types
 export type RootStackParamList = {
   Main: undefined;
   Login: undefined;
@@ -48,11 +45,6 @@ export type RootStackParamList = {
   GroupDetail: { groupId: string };
   AddExpense: { groupId: string };
   SelectPeople: any;
-
-  CategorySelector: {
-    onSelectCategory: (category: ExpenseCategory) => void;
-    selectedCategory?: ExpenseCategory;
-  };
 
   SettleScreen: {
     groupId: string;
@@ -69,7 +61,6 @@ export type RootStackParamList = {
 type TabParamList = {
   Dashboard: undefined;
   Groups: undefined;
-  Expenses: undefined;
   Balances: undefined;
   Profile: undefined;
 };
@@ -78,7 +69,7 @@ type TabParamList = {
 const Stack = createNativeStackNavigator<RootStackParamList>();
 const Tab = createBottomTabNavigator<TabParamList>();
 
-// ---------- TABS ----------
+// tabs
 function MainTabs() {
   const { darkMode } = useStore();
   const colors = getThemeColors(darkMode);
@@ -95,14 +86,13 @@ function MainTabs() {
     >
       <Tab.Screen name="Dashboard" component={DashboardScreen} />
       <Tab.Screen name="Groups" component={GroupsScreen} />
-      {/* <Tab.Screen name="Expenses" component={ExpensesScreen} /> */}
       <Tab.Screen name="Balances" component={BalancesScreen} />
       <Tab.Screen name="Profile" component={ProfileScreen} />
     </Tab.Navigator>
   );
 }
 
-// ---------- APP ----------
+// app
 export default function App() {
   const { isAuthenticated, user, isUnlocked, darkMode } = useStore();
   const { loading } = useAuth();
@@ -138,7 +128,7 @@ export default function App() {
   if (loading) {
     return (
       <View style={styles.loader}>
-        <ActivityIndicator size="large" />
+        <ActivityIndicator size="large" color={themeColors.primary} />
       </View>
     );
   }
@@ -193,12 +183,6 @@ export default function App() {
                 />
 
                 <Stack.Screen
-                  name="CategorySelector"
-                  component={CategorySelectorScreen}
-                  options={{ title: 'Select Category' }}
-                />
-
-                <Stack.Screen
                   name="CreateGroup"
                   component={CreateGroupScreen}
                   options={{ title: 'Create Group' }}
@@ -210,7 +194,6 @@ export default function App() {
                   options={{ title: 'Select People', headerShown: false }}
                 />
 
-                {/* ✅ NEW SCREENS */}
                 <Stack.Screen
                   name="SettleScreen"
                   component={SettleScreen}
@@ -237,7 +220,7 @@ export default function App() {
   );
 }
 
-// ---------- STYLES ----------
+// styles
 const styles = StyleSheet.create({
   loader: {
     flex: 1,

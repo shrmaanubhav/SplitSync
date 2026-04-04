@@ -177,7 +177,7 @@ const BalancesScreen = () => {
               data={balances.balances}
               renderItem={renderItem}
               keyExtractor={i => i.groupId}
-              contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 100 }}
+              contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 20 }}
               refreshControl={
                 <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
               }
