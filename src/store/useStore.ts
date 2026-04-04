@@ -11,6 +11,7 @@ interface User {
   phoneNumber: string;
   currency: string;
   createdAt?: number;
+  status?: 'active' | 'deleted';
   bio?: string;
   friends?:string[];
 }
