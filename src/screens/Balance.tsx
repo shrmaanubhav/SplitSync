@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect ,useCallback} from 'react';
 import firestore from '@react-native-firebase/firestore';
 import { useStore } from '../store/useStore';
 import {
@@ -9,7 +9,7 @@ import {
   TouchableOpacity,
   RefreshControl,
 } from 'react-native';
-import { useNavigation } from '@react-navigation/native';
+import { useNavigation , useFocusEffect } from '@react-navigation/native';
 import { formatCurrency } from '../utils/format';
 import { getCurrentTheme } from '../services/theme.service';
 import Screen from '../components/Screen';
@@ -77,9 +77,11 @@ const BalancesScreen = () => {
     }
   };
 
-  useEffect(() => {
-    fetchBalances();
-  }, []);
+  useFocusEffect(
+    useCallback(() => {
+      fetchBalances();
+    }, [user]) 
+  );
 
   const onRefresh = async () => {
     setRefreshing(true);
@@ -120,7 +122,6 @@ const BalancesScreen = () => {
 
           {/* RIGHT SIDE: Amount & Action */}
           <View style={styles.cardRight}>
-            {/* The actual money stays green/red for clear accounting */}
             <Text
               style={[
                 styles.amount,
@@ -129,8 +130,7 @@ const BalancesScreen = () => {
             >
               {formatCurrency(Math.abs(item.netBalance))}
             </Text>
-            
-            {/* ✅ The interactive action text uses your primary Orange theme */}
+
             {!isZero && (
               <Text style={[styles.actionText, { color: theme.primary }]}>
                 {isPositive ? 'View ▸' : 'Settle ▸'}
@@ -147,7 +147,6 @@ const BalancesScreen = () => {
       <View style={[styles.container, { backgroundColor: theme.background }]}>
         {balances && (
           <>
-            {/* ✅ BRANDED SUMMARY CARD: Solid Orange Background with Crisp White Text */}
             <View
               style={[
                 styles.summary,
@@ -200,7 +199,6 @@ const styles = StyleSheet.create({
     padding: 24,
     borderRadius: 20,
     alignItems: 'center',
-    // Gives the orange card a nice subtle glow on iOS
     shadowOffset: { width: 0, height: 6 },
     shadowOpacity: 0.25,
     shadowRadius: 10,

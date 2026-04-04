@@ -2,10 +2,11 @@ import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
-// ---------- TYPES ----------
+// types
 
 interface User {
   _id: string;
+  uid?: string;
   name: string;
   phoneNumber: string;
   currency: string;
@@ -37,7 +38,7 @@ interface Balance {
   netBalance: number;
 }
 
-// ---------- STORE ----------
+// store
 
 interface AppState {
   // auth
@@ -81,12 +82,12 @@ interface AppState {
   updateUserCurrency: (currency: string) => void;
 }
 
-// ---------- IMPLEMENTATION ----------
+// implementation
 
 export const useStore = create<AppState>()(
   persist(
     (set, get) => ({
-      // ---------- STATE ----------
+      // state
       isAuthenticated: false,
       user: null,
       token: null,
@@ -100,7 +101,7 @@ export const useStore = create<AppState>()(
       darkMode: false,
       loading: false,
 
-      // ---------- AUTH ----------
+      // auth
       setIsAuthenticated: (val) => set({ isAuthenticated: val }),
 
       setUser: (user) => set({ user }),
@@ -134,7 +135,7 @@ export const useStore = create<AppState>()(
             };
           }),
 
-      // ---------- STATE SETTERS ----------
+      // state setters
       setGroups: (groups) => set({ groups }),
 
       setCurrentGroup: (group) => set({ currentGroup: group }),
@@ -149,7 +150,7 @@ export const useStore = create<AppState>()(
 
       setLoading: (loading) => set({ loading }),
 
-      // ---------- USER ----------
+      // user
       setUserCurrency: (currency) => {
         const state = get();
         if (!state.user) return;

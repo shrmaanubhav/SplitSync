@@ -18,7 +18,6 @@ import { getBalances } from '../services/balance.service';
 import { getSettlements } from '../services/settlement.service';
 import { RootStackParamList } from '../types/navigation.types';
 import { useStore } from '../store/useStore';
-import navigation from '../navigation';
 
 const GroupDetailScreen = () => {
   const navigation = useNavigation<NavigationProp<RootStackParamList>>();
@@ -34,8 +33,10 @@ const GroupDetailScreen = () => {
 
   const { user } = useStore();
   const theme = getCurrentTheme();
+  
+  const currentUserId = (user as any)?.uid || user?._id;
 
-  // ---------- FETCH GROUP ----------
+  // fetch group
   useEffect(() => {
     const unsub = firestore()
       .collection('groups')
@@ -49,7 +50,7 @@ const GroupDetailScreen = () => {
     return unsub;
   }, [groupId]);
 
-  // ---------- FETCH USERS (ID → NAME) ----------
+  // fetch name from id
   useEffect(() => {
     if (!group?.members?.length) return;
 
@@ -70,7 +71,7 @@ const GroupDetailScreen = () => {
     return unsub;
   }, [group]);
 
-  // ---------- FETCH EXPENSES ----------
+  // fetch expenses
   useEffect(() => {
     if (!group) return;
 
@@ -100,16 +101,17 @@ const GroupDetailScreen = () => {
     return <Text style={{ padding: 20 }}>Loading...</Text>;
   }
 
-  // ---------- NAME MAPPER ----------
+  // map names
   const getName = (id: string) => {
+    if (id === currentUserId) return 'You';
     return usersMap[id] || id;
   };
 
-  // ---------- SUMMARY ----------
+  // summary
   const getSummary = () => {
-    if (!user) return { owe: 0, receive: 0 };
+    if (!currentUserId) return { owe: 0, receive: 0 };
 
-    const myBalance = balances[user._id] || 0;
+    const myBalance = balances[currentUserId] || 0;
 
     if (myBalance < 0) {
       return { owe: Math.abs(myBalance), receive: 0 };
@@ -120,15 +122,13 @@ const GroupDetailScreen = () => {
     }
   };
 
-  
-
   const summary = getSummary();
 
   const handleSettleUp = () => {
-    if (!user) return;
+    if (!currentUserId) return;
 
-    const myPay = settlements.filter(s => s.from === user._id);
-    const myReceive = settlements.filter(s => s.to === user._id);
+    const myPay = settlements.filter(s => s.from === currentUserId);
+    const myReceive = settlements.filter(s => s.to === currentUserId);
 
     navigation.navigate('SettleScreen', {
       groupId: groupId,
@@ -137,78 +137,74 @@ const GroupDetailScreen = () => {
     });
   };
 
-  // const handleBalances = () => {
-  //   navigation.navigate('BalancesScreen', {
-  //     groupId: groupId,
-  //     balances: balances,
-  //   }); 
-  // };
+  // show expenses
+  const renderExpense = ({ item }: any) => {
+    const dateObj = item.createdAt?.toDate ? item.createdAt.toDate() : new Date(item.createdAt);
+    const dateString = dateObj.toDateString() !== 'Invalid Date' ? dateObj.toDateString().slice(4, 10) : 'N/A';
 
-  // ---------- RENDER EXPENSE ----------
-  const renderExpense = ({ item }: any) => (
-    <View style={styles.row}>
-      
-      {/* DATE */}
-      <View style={styles.dateBox}>
-        <Text style={{ color: theme.textSecondary, fontSize: 12 }}>
-          {new Date(item.createdAt).toDateString().slice(4, 10)}
-        </Text>
+    return (
+      <View style={styles.row}>
+        {/* DATE */}
+        <View style={styles.dateBox}>
+          <Text style={{ color: theme.textSecondary, fontSize: 12, fontWeight: '600' }}>
+            {dateString}
+          </Text>
+        </View>
+
+        {/* ICON */}
+        <View style={[styles.icon, { backgroundColor: theme.cardBackground, borderColor: theme.border, borderWidth: 1 }]}>
+          <Text style={{ fontSize: 16 }}>💸</Text>
+        </View>
+
+        {/* TEXT */}
+        <View style={{ flex: 1, justifyContent: 'center' }}>
+          <Text style={{ color: theme.textPrimary, fontSize: 15, fontWeight: '600' }}>
+            {getName(item.paidBy)} paid <Text style={{ fontWeight: '800' }}>₹{item.amount}</Text>
+          </Text>
+
+          <Text style={{ color: theme.textSecondary, marginTop: 2, fontSize: 13 }}>
+            {item.description || 'Expense'}
+          </Text>
+        </View>
       </View>
-
-      {/* ICON */}
-      <View style={[styles.icon, { backgroundColor: theme.cardBackground }]}>
-        <Text>💰</Text>
-      </View>
-
-      {/* TEXT */}
-      <View style={{ flex: 1 }}>
-        <Text style={{ color: theme.textPrimary }}>
-          {getName(item.paidBy)} paid ₹{item.amount}
-        </Text>
-
-        <Text style={{ color: theme.textSecondary, marginTop: 3 }}>
-          {item.description || 'Expense'}
-        </Text>
-      </View>
-    </View>
-  );
+    );
+  };
 
   return (
     <View style={[styles.container, { backgroundColor: theme.background }]}>
-
       {/* HEADER */}
       <View style={styles.header}>
         <Text style={[styles.title, { color: theme.textPrimary }]}>
           {group.name}
         </Text>
-        <Text style={{ color: theme.textSecondary }}>
-          {group.members?.length || 0} people
+        <Text style={{ color: theme.textSecondary, fontSize: 16, marginTop: 4 }}>
+          {group.members?.length || 0} members
         </Text>
       </View>
 
       {/* SUMMARY */}
-      <View style={[styles.card, { backgroundColor: theme.cardBackground }]}>
+      <View style={[styles.card, { backgroundColor: theme.cardBackground, borderColor: theme.border, borderWidth: 1 }]}>
         {summary.owe > 0 && (
-          <Text style={{ color: theme.textPrimary }}>
+          <Text style={{ color: theme.textPrimary, fontSize: 16, fontWeight: '500' }}>
             You owe{' '}
-            <Text style={{ color: 'orange', fontWeight: 'bold' }}>
-              ₹{summary.owe}
+            <Text style={{ color: '#FF3B30', fontWeight: 'bold', fontSize: 18 }}>
+              ₹{summary.owe.toFixed(2)}
             </Text>
           </Text>
         )}
 
         {summary.receive > 0 && (
-          <Text style={{ color: theme.textPrimary, marginTop: 5 }}>
+          <Text style={{ color: theme.textPrimary, fontSize: 16, fontWeight: '500' }}>
             You will receive{' '}
-            <Text style={{ color: 'green', fontWeight: 'bold' }}>
-              ₹{summary.receive}
+            <Text style={{ color: '#4CD964', fontWeight: 'bold', fontSize: 18 }}>
+              ₹{summary.receive.toFixed(2)}
             </Text>
           </Text>
         )}
 
         {summary.owe === 0 && summary.receive === 0 && (
-          <Text style={{ color: theme.textSecondary }}>
-            All settled
+          <Text style={{ color: theme.textSecondary, fontSize: 16, fontStyle: 'italic' }}>
+            All settled up in this group 🎉
           </Text>
         )}
       </View>
@@ -216,18 +212,14 @@ const GroupDetailScreen = () => {
       {/* ACTIONS */}
       <View style={styles.actions}>
         <TouchableOpacity
+          activeOpacity={0.8}
           style={[styles.primaryBtn, { backgroundColor: theme.primary }]}
           onPress={handleSettleUp}
         >
-          <Text style={{ color: '#fff' }}>Settle up</Text>
+          <Text style={{ color: '#fff', fontWeight: '700', fontSize: 15, textTransform: 'uppercase' }}>
+            Settle up
+          </Text>
         </TouchableOpacity>
-
-        {/* <TouchableOpacity
-          style={[styles.secondaryBtn, { borderColor: theme.border }]}
-          onPress={handleBalances}
-        >
-          <Text style={{ color: theme.textPrimary }}>Balances</Text>
-        </TouchableOpacity> */}
       </View>
 
       {/* LIST */}
@@ -235,84 +227,78 @@ const GroupDetailScreen = () => {
         data={expenses}
         renderItem={renderExpense}
         keyExtractor={(item) => item._id}
-        contentContainerStyle={{ marginTop: 20, paddingBottom: 100 }}
+        contentContainerStyle={{ marginTop: 10, paddingBottom: 100 }}
       />
 
       {/* FLOAT BUTTON */}
       <View style={styles.fabContainer}>
-        <View style={[styles.fab, { backgroundColor: theme.primary }]}>
-          <Text
-            style={{ color: '#fff', fontWeight: 'bold' }}
-            onPress={() => navigation.navigate('AddExpense', { groupId })}
-          >
-            + Add expense
+        <TouchableOpacity 
+          activeOpacity={0.9}
+          style={[styles.fab, { backgroundColor: theme.primary }]}
+          onPress={() => navigation.navigate('AddExpense', { groupId })}
+        >
+          <Text style={{ color: '#fff', fontWeight: 'bold', fontSize: 16 }}>
+            + Add Expense
           </Text>
-        </View>
+        </TouchableOpacity>
       </View>
-
     </View>
   );
 };
 
-
 const styles = StyleSheet.create({
   container: { flex: 1, padding: 16 },
-
   header: { marginBottom: 20 },
-
-  title: { fontSize: 28, fontWeight: 'bold' },
-
+  title: { fontSize: 32, fontWeight: '800' },
   card: {
-    padding: 15,
-    borderRadius: 12,
-    marginBottom: 15,
+    padding: 20,
+    borderRadius: 16,
+    marginBottom: 16,
   },
-
   actions: {
     flexDirection: 'row',
-    gap: 10,
-    marginBottom: 10,
+    marginBottom: 20,
   },
-
   primaryBtn: {
-    padding: 10,
-    borderRadius: 8,
+    paddingHorizontal: 24,
+    paddingVertical: 12,
+    borderRadius: 12,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.2,
+    shadowRadius: 4,
+    elevation: 4,
   },
-
-  secondaryBtn: {
-    padding: 10,
-    borderRadius: 8,
-    borderWidth: 1,
-  },
-
   row: {
     flexDirection: 'row',
-    marginBottom: 15,
+    alignItems: 'center',
+    marginBottom: 16,
+    paddingVertical: 8,
   },
-
   dateBox: {
     width: 60,
+    alignItems: 'center',
   },
-
   icon: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
+    width: 44,
+    height: 44,
+    borderRadius: 22,
     alignItems: 'center',
     justifyContent: 'center',
-    marginRight: 10,
+    marginRight: 12,
   },
-
   fabContainer: {
     position: 'absolute',
-    bottom: 20,
-    right: 20,
+    bottom: 24,
+    right: 24,
   },
-
   fab: {
-    paddingHorizontal: 20,
-    paddingVertical: 12,
-    borderRadius: 25,
+    paddingHorizontal: 24,
+    paddingVertical: 16,
+    borderRadius: 30,
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 8,
   },
 });
 
