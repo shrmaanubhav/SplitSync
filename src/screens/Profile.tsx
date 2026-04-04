@@ -16,22 +16,22 @@ type RootStackParamList = {
   EditProfile: undefined;
 };
 
-type ProfileScreenNavigationProp =
-  NativeStackNavigationProp<RootStackParamList>;
+type ProfileScreenNavigationProp = NativeStackNavigationProp<RootStackParamList>;
 
 const ProfileScreen = () => {
   const navigation = useNavigation<ProfileScreenNavigationProp>();
   const { user, logout } = useStore();
+  const theme = getCurrentTheme();
 
   const handleLogout = async () => {
     try {
-      // 🔴 IMPORTANT: logout from Firebase
+      // logout from Firebase
       await authService.logout();
 
-      // 🔴 Clear app state
+      // Clear app state
       logout();
 
-      // 🔴 Reset navigation stack (no back navigation)
+      // Reset navigation stack (no back navigation)
       navigation.reset({
         index: 0,
         routes: [{ name: 'Login' }],
@@ -41,135 +41,201 @@ const ProfileScreen = () => {
     }
   };
 
-  const theme = getCurrentTheme();
+  let joinedDateString = '';
+  if (user?.createdAt) {
+    const createdAt = user.createdAt as any;
+    const dateObj = createdAt?.toDate ? createdAt.toDate() : new Date(createdAt);
+    
+    if (dateObj.toString() !== 'Invalid Date') {
+      joinedDateString = dateObj.toLocaleDateString(undefined, { 
+        year: 'numeric', 
+        month: 'long' 
+      });
+    }
+  }
 
   return (
     <Screen>
-      <View style={styles.profileHeader}>
-        <TouchableOpacity
-          style={[
-            styles.profileInfoContainer,
-            {
-              backgroundColor: theme.cardBackground,
-              shadowColor: theme.shadow,
-              elevation: theme.elevation,
-            },
-          ]}
-          onPress={() => navigation.navigate('EditProfile' as any)}
-        >
-          <Avatar
-            name={user?.name}
-            size="large"
-            variant="circular"
-            editable={true}
+      <View style={[styles.container, { backgroundColor: theme.background }]}>
+        
+        {/* PROFILE HEADER CARD */}
+        <View style={styles.profileHeader}>
+          <TouchableOpacity
+            activeOpacity={0.8}
+            style={[
+              styles.profileInfoContainer,
+              {
+                backgroundColor: theme.cardBackground,
+                borderColor: theme.border,
+              },
+            ]}
+            onPress={() => navigation.navigate('EditProfile' as any)}
+          >
+            <View style={styles.avatarWrapper}>
+              <Avatar
+                name={user?.name || ''}
+                size={70}
+                variant="circular"
+              />
+            </View>
+
+            <View style={styles.userInfo}>
+              <Text style={[styles.userName, { color: theme.textPrimary }]} numberOfLines={1}>
+                {user?.name || 'User'}
+              </Text>
+
+              {/* ✅ FIX 2: Added the same safe fallback for phone numbers */}
+              <Text style={[styles.userPhone, { color: theme.textSecondary }]}>
+                {user?.phoneNumber || user?.phoneNumber || 'No phone number'}
+              </Text>
+
+              {user?.bio && (
+                <Text style={[styles.userBio, { color: theme.textSecondary }]} numberOfLines={2}>
+                  {user.bio}
+                </Text>
+              )}
+
+              {joinedDateString ? (
+                <Text style={[styles.joinedDate, { color: theme.textTertiary }]}>
+                  Joined {joinedDateString}
+                </Text>
+              ) : null}
+            </View>
+
+            <Text style={[styles.chevron, { color: theme.textTertiary }]}>▸</Text>
+          </TouchableOpacity>
+        </View>
+
+        {/* MENU OPTIONS */}
+        <View style={styles.menuContainer}>
+          <Text style={[styles.sectionTitle, { color: theme.textPrimary }]}>Account</Text>
+
+          <TouchableOpacity
+            activeOpacity={0.7}
+            style={[styles.menuItem, { backgroundColor: theme.cardBackground, borderColor: theme.border }]}
+            onPress={() => navigation.navigate('Settings')}
+          >
+            <View style={styles.menuIconBox}><Text style={styles.menuIcon}>⚙️</Text></View>
+            <Text style={[styles.menuText, { color: theme.textPrimary }]}>Settings</Text>
+            <Text style={[styles.chevron, { color: theme.textTertiary }]}>▸</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            activeOpacity={0.7}
+            style={[styles.menuItem, { backgroundColor: theme.cardBackground, borderColor: theme.border }]}
+            onPress={() => navigation.navigate('Friends')}
+          >
+            <View style={styles.menuIconBox}><Text style={styles.menuIcon}>🤝</Text></View>
+            <Text style={[styles.menuText, { color: theme.textPrimary }]}>Friends</Text>
+            <Text style={[styles.chevron, { color: theme.textTertiary }]}>▸</Text>
+          </TouchableOpacity>
+        </View>
+
+        {/* LOGOUT BUTTON */}
+        <View style={styles.bottomContainer}>
+          <Button
+            title="Logout"
+            onPress={handleLogout}
+            variant="danger" 
+            style={styles.logoutButton}
           />
-          <View style={styles.userInfo}>
-            <Text style={[styles.userName, { color: theme.textPrimary }]}>
-              {user?.name || 'User'}
-            </Text>
-
-            <Text style={[styles.userPhone, { color: theme.textSecondary }]}>
-              {user?.phoneNumber || 'No phone number'}
-            </Text>
-
-            {user?.bio && (
-              <Text style={[styles.userBio, { color: theme.textSecondary }]}>
-                {user.bio}
-              </Text>
-            )}
-
-            {user?.createdAt && (
-              <Text style={[styles.joinedDate, { color: theme.textSecondary }]}>
-                Joined {new Date(user.createdAt).toLocaleDateString()}
-              </Text>
-            )}
-          </View>
-        </TouchableOpacity>
-      </View>
-
-      <View style={styles.menuContainer}>
-        <TouchableOpacity
-          style={[styles.menuItem, { backgroundColor: theme.cardBackground }]}
-          onPress={() => navigation.navigate('Settings')}
-        >
-          <Text style={[styles.menuText, { color: theme.textPrimary }]}>
-            Settings
-          </Text>
-        </TouchableOpacity>
-
-        <TouchableOpacity
-          style={[styles.menuItem, { backgroundColor: theme.cardBackground }]}
-          onPress={() => navigation.navigate('Friends')}
-        >
-          <Text style={[styles.menuText, { color: theme.textPrimary }]}>
-            Friends
-          </Text>
-        </TouchableOpacity>
-      </View>
-
-      <View style={styles.bottomContainer}>
-        <Button
-          title="Logout"
-          onPress={handleLogout}
-          variant="danger"
-          style={styles.logoutButton}
-        />
+        </View>
       </View>
     </Screen>
   );
 };
 
 const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+  },
   profileHeader: {
     padding: 20,
-    borderBottomWidth: 1,
-    borderBottomColor: '#EEE',
   },
   profileInfoContainer: {
     flexDirection: 'row',
     alignItems: 'center',
     borderRadius: 16,
     padding: 20,
+    borderWidth: 1,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.05,
+    shadowRadius: 6,
+    elevation: 3,
+  },
+  avatarWrapper: {
+    marginRight: 16,
   },
   userInfo: {
     flex: 1,
   },
   userName: {
     fontSize: 22,
-    fontWeight: '700',
+    fontWeight: '800',
+    marginBottom: 4,
   },
   userPhone: {
-    fontSize: 15,
+    fontSize: 14,
+    fontWeight: '500',
   },
   userBio: {
     fontSize: 14,
     marginTop: 8,
+    fontStyle: 'italic',
   },
   joinedDate: {
-    fontSize: 13,
+    fontSize: 12,
     marginTop: 8,
+    fontWeight: '600',
+  },
+  sectionTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    marginBottom: 12,
+    marginLeft: 4,
   },
   menuContainer: {
-    marginTop: 20,
-    paddingHorizontal: 15,
+    paddingHorizontal: 20,
   },
   menuItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
     paddingVertical: 16,
-    paddingHorizontal: 20,
+    paddingHorizontal: 16,
     marginBottom: 12,
-    borderRadius: 12,
+    borderRadius: 16,
+    borderWidth: 1,
+  },
+  menuIconBox: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: 'rgba(0,0,0,0.04)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 16,
+  },
+  menuIcon: {
+    fontSize: 18,
   },
   menuText: {
-    fontSize: 17,
+    flex: 1,
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  chevron: {
+    fontSize: 24,
+    fontWeight: '300',
   },
   bottomContainer: {
     flex: 1,
     justifyContent: 'flex-end',
     padding: 20,
+    paddingBottom: 40, // Keeps it clear of the floating tab bar
   },
   logoutButton: {
-    paddingVertical: 15,
-    borderRadius: 12,
+    paddingVertical: 16,
+    borderRadius: 16,
   },
 });
 

@@ -38,7 +38,7 @@ interface ProfileFormData {
 
 // ---------- VALIDATION ----------
 const schema: yup.ObjectSchema<ProfileFormData> = yup.object({
-  name: yup.string().required().min(2).max(50),
+  name: yup.string().required('Name is required').min(2, 'Name must be at least 2 characters').max(50),
   bio: yup.string().nullable().default(''),
 });
 
@@ -64,7 +64,9 @@ const EditProfileScreen = () => {
     watch,
   } = methods;
 
-  const bioValue = watch('bio', '');
+  // ✅ FIX 1: Watch the fields directly instead of wrapping non-inputs in FormInputWrapper
+  const bioValue = watch('bio') || '';
+  const nameValue = watch('name') || '';
 
   // ---------- SUBMIT ----------
   const onSubmit: SubmitHandler<ProfileFormData> = async (data) => {
@@ -103,15 +105,12 @@ const EditProfileScreen = () => {
       <ScrollView contentContainerStyle={styles.container}>
         {/* Avatar */}
         <View style={styles.avatarContainer}>
-          <FormInputWrapper
-            name="name"
-            render={({ value }) => (
-              <Avatar name={value} size={100} variant="circular" />
-            )}
-          />
-          <Text style={[styles.changeAvatarText, { color: theme.primary }]}>
+          {/* ✅ FIX 2: Pass the watched nameValue directly to the Avatar */}
+          <Avatar name={nameValue} size={100} variant="circular" />
+          
+          {/* <Text style={[styles.changeAvatarText, { color: theme.primary, marginTop: 12 }]}>
             Change Avatar
-          </Text>
+          </Text> */}
         </View>
 
         <FormProvider {...methods}>
@@ -135,7 +134,8 @@ const EditProfileScreen = () => {
                 placeholderTextColor={theme.textSecondary}
               />
               {errors.name && (
-                <Text style={[styles.errorText, { color: theme.danger }]}>
+                // ✅ FIX 3: Replaced theme.danger with a safe hex code (#FF3B30)
+                <Text style={[styles.errorText, { color: '#FF3B30' }]}>
                   {errors.name.message}
                 </Text>
               )}
@@ -160,11 +160,11 @@ const EditProfileScreen = () => {
                 multiline
                 maxLength={500}
               />
-              <Text style={{ color: theme.textSecondary }}>
-                {(bioValue || '').length}/500
+              <Text style={{ color: theme.textSecondary, alignSelf: 'flex-end', marginTop: 4 }}>
+                {bioValue.length}/500
               </Text>
               {errors.bio && (
-                <Text style={[styles.errorText, { color: theme.danger }]}>
+                <Text style={[styles.errorText, { color: '#FF3B30' }]}>
                   {errors.bio.message}
                 </Text>
               )}
@@ -184,10 +184,11 @@ const EditProfileScreen = () => {
                     borderColor: theme.border,
                   },
                 ]}
-                value={user?.phoneNumber || ''}
+                // Handles missing phoneNumber safely
+                value={user?.phoneNumber || user?.phoneNumber || 'No phone added'} 
                 editable={false}
               />
-              <Text style={{ color: theme.textSecondary, fontSize: 12 }}>
+              <Text style={{ color: theme.textSecondary, fontSize: 12, marginTop: 4 }}>
                 Phone number cannot be changed
               </Text>
             </View>
@@ -218,6 +219,7 @@ const styles = StyleSheet.create({
   container: {
     flexGrow: 1,
     padding: 20,
+    paddingBottom: 40,
   },
   avatarContainer: {
     alignItems: 'center',
@@ -240,26 +242,27 @@ const styles = StyleSheet.create({
   },
   input: {
     borderWidth: 1,
-    borderRadius: 8,
-    padding: 15,
+    borderRadius: 12, // Smoothed out border radius to match your new branding
+    padding: 16,
     fontSize: 16,
   },
   textArea: {
     borderWidth: 1,
-    borderRadius: 8,
-    padding: 15,
-    height: 100,
+    borderRadius: 12,
+    padding: 16,
+    height: 120,
     textAlignVertical: 'top',
   },
   errorText: {
     fontSize: 14,
-    marginTop: 5,
+    marginTop: 6,
+    fontWeight: '500',
   },
   buttonContainer: {
-    marginTop: 20,
+    marginTop: 10,
   },
   cancelButton: {
-    marginTop: 10,
+    marginTop: 12,
   },
 });
 
