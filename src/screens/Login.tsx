@@ -31,7 +31,8 @@ const LoginScreen = () => {
   const [initialChecking, setInitialChecking] = useState(true);
 
   const theme = getCurrentTheme();
-  const { setUser, setUnlocked, user } = useStore();
+  // Added 'logout' from store to help clear ghost data
+  const { setUser, setUnlocked, user, logout } = useStore();
 
   useEffect(() => {
     const checkSession = async () => {
@@ -41,16 +42,19 @@ const LoginScreen = () => {
         
         if (fbUser) {
           const doc = await firestore().collection('users').doc(fbUser.uid).get();
-          if (doc.exists()) {
-            const userData = doc.data();
+          const userData = doc.data();
+
+          // 🛡️ GUARD: Only proceed if the doc exists AND has a name/phone
+          if (doc.exists() && userData?.phoneNumber && userData?.name) {
             setUser(userData as any);
-            setName(userData?.name || ''); 
+            setName(userData.name); 
             if (savedPin) {
               setStep('pin');
             } else {
               setStep('setup');
             }
           } else {
+            // No valid Firestore data found - force Setup
             setStep('setup');
           }
         }
@@ -65,7 +69,7 @@ const LoginScreen = () => {
 
   const handleSendOTP = async () => {
     if (phone.length < 10) {
-      Alert.alert('Invalid Phone Number', 'Please enter a valid 10-digit phone number.');
+      Alert.alert('Invalid Phone Number', 'Please enter a 10-digit number.');
       return;
     }
     try {
@@ -73,7 +77,7 @@ const LoginScreen = () => {
       await authService.sendOTP(`+91${phone}`);
       setOtpSent(true);
     } catch (e: any) {
-      Alert.alert('Error', 'Unable to send OTP. Please check your network connection.');
+      Alert.alert('Error', 'Unable to send OTP.');
     } finally {
       setLoading(false);
     }
@@ -84,17 +88,22 @@ const LoginScreen = () => {
       setLoading(true);
       const fbUser = await authService.verifyOTP(otp);
       if (!fbUser) throw new Error('Verification failed');
+      
       const doc = await firestore().collection('users').doc(fbUser.uid).get();
-      if (doc.exists()) {
-        const userData = doc.data();
+      const userData = doc.data();
+
+      // ✅ FIX: If the user doc is missing or scrubbed, stay on 'setup'
+      // and DO NOT update the store user yet.
+      if (doc.exists() && userData?.phoneNumber && userData?.name) {
         setUser(userData as any);
-        setName(userData?.name || '');
-        setStep('setup'); 
+        setName(userData.name);
+        setStep('pin'); 
       } else {
+        setUser(null); // Clear any ghost user in store
         setStep('setup');
       }
     } catch (e: any) {
-      Alert.alert('Verification Failed', 'The code entered is incorrect. Please try again.');
+      Alert.alert('Verification Failed', 'Invalid code.');
     } finally {
       setLoading(false);
     }
@@ -106,32 +115,43 @@ const LoginScreen = () => {
       setUnlocked(true);
     } else {
       setPin('');
-      Alert.alert('Incorrect PIN', 'The PIN entered does not match our records.');
+      Alert.alert('Incorrect PIN', 'Please try again.');
     }
   };
 
   const handleSetup = async () => {
     try {
       if (!name.trim() || pin.length < 4) {
-        throw new Error('Please provide your full name and a 4-digit security PIN.');
+        throw new Error('Please provide your name and a 4-digit PIN.');
       }
       setLoading(true);
       const fbUser = authService.getCurrentUser();
       const uid = fbUser?.uid;
       const phoneNumber = fbUser?.phoneNumber;
-      if (!uid) throw new Error('Session expired. Please restart the process.');
+      
+      if (!uid) throw new Error('Session expired.');
+
+      // 1. Save PIN locally first
       await authService.savePin(pin);
-      const updatedUser = {
+
+      // 2. Prepare the new user object
+      const freshUser = {
         _id: uid,
         name: name.trim(),
-        phoneNumber: phoneNumber || '', 
-        currency: user?.currency || 'INR',
-        friends: user?.friends || [],
-        createdAt: user?.createdAt || Date.now(),
+        phoneNumber: phoneNumber || `+91${phone}`, 
+        currency: 'INR',
+        friends: [],
+        createdAt: Date.now(),
+        status: 'active'
       };
-      await firestore().collection('users').doc(uid).set(updatedUser, { merge: true });
-      setUser(updatedUser as any);
+
+      // 3. Write to Firestore WITHOUT merge:true to overwrite the "deleted" shell
+      await firestore().collection('users').doc(uid).set(freshUser);
+
+      // 4. Update store and unlock ONLY AFTER firestore is successful
+      setUser(freshUser as any);
       setUnlocked(true);
+      
     } catch (e: any) {
       Alert.alert('Setup Error', e.message);
     } finally {
@@ -140,6 +160,7 @@ const LoginScreen = () => {
   };
 
   const handleResetFlow = () => {
+    logout(); // Clear everything
     setOtpSent(false);
     setOtp('');
     setPhone('');
@@ -163,10 +184,10 @@ const LoginScreen = () => {
           </View>
           <Text style={[styles.title, { color: theme.textPrimary }]}>
             {step === 'pin' ? `Welcome back, ${user?.name?.split(' ')[0] || 'User'}` : 
-             step === 'setup' ? (user ? 'Reset Security PIN' : 'Create Account') : 'Welcome to SplitSync'}
+             step === 'setup' ? (user?.name ? 'Security PIN' : 'Create Account') : 'Welcome to SplitSync'}
           </Text>
           <Text style={[styles.subtitle, { color: theme.textSecondary }]}>
-            {step === 'pin' ? 'Enter your security PIN to unlock the app.' : 
+            {step === 'pin' ? 'Enter your security PIN to unlock.' : 
              step === 'setup' ? 'Set a 4-digit PIN to protect your account.' : 
              'Expense splitting, synchronized.'}
           </Text>
@@ -175,7 +196,6 @@ const LoginScreen = () => {
         <View style={styles.form}>
           {step === 'auth' && (
             <View style={styles.inputWrapper}>
-              {/* NEW: Professional Phone Input with +91 Prefix */}
               <View style={[styles.phoneInputRow, { backgroundColor: theme.cardBackground, borderColor: theme.border }]}>
                 <Text style={[styles.prefix, { color: theme.textPrimary }]}>+91</Text>
                 <View style={[styles.divider, { backgroundColor: theme.border }]} />
@@ -226,7 +246,8 @@ const LoginScreen = () => {
 
           {step === 'setup' && (
             <View style={styles.inputWrapper}>
-              {!user && (
+              {/* Show name input if we don't have a valid name in store */}
+              {!user?.name && (
                 <TextInput
                   style={[styles.input, { backgroundColor: theme.cardBackground, color: theme.textPrimary, borderColor: theme.border }]}
                   placeholder="Full Name"
@@ -265,12 +286,10 @@ const styles = StyleSheet.create({
   form: { width: '100%' },
   inputWrapper: { gap: 16 },
   input: { height: 60, borderRadius: 16, paddingHorizontal: 20, fontSize: 16, borderWidth: 1 },
-  // Row for Phone + Prefix
-  phoneInputRow: { height: 60, borderRadius: 16, borderHorizontal: 20, borderWidth: 1, flexDirection: 'row', alignItems: 'center', paddingHorizontal: 15 },
+  phoneInputRow: { height: 60, borderRadius: 16, borderWidth: 1, flexDirection: 'row', alignItems: 'center', paddingHorizontal: 15 },
   prefix: { fontSize: 16, fontWeight: '700', paddingRight: 10 },
   divider: { width: 1, height: '60%', marginHorizontal: 10 },
   flexInput: { flex: 1, height: '100%', fontSize: 16 },
-  // PIN Styles
   pinInput: { height: 75, borderRadius: 20, textAlign: 'center', fontSize: 36, fontWeight: 'bold', borderWidth: 1, letterSpacing: 15 },
   forgotBtn: { alignSelf: 'center', marginTop: 25 },
 });

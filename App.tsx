@@ -144,13 +144,15 @@ export default function App() {
               contentStyle: { backgroundColor: themeColors.background },
             }}
           >
-            {isAuthenticated && user && isUnlocked ? (
+            {/* 🛡️ THE FIX: Strictly require name and phoneNumber to access the app */}
+            {isAuthenticated && user?.name && user?.phoneNumber && isUnlocked ? (
               <>
                 <Stack.Screen
                   name="Main"
                   component={MainTabs}
                   options={{ headerShown: false }}
                 />
+                {/* ... rest of your main stack screens ... */}
 
                 <Stack.Screen
                   name="GroupDetail"
