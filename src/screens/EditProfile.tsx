@@ -64,7 +64,7 @@ const EditProfileScreen = () => {
     watch,
   } = methods;
 
-  // ✅ FIX 1: Watch the fields directly instead of wrapping non-inputs in FormInputWrapper
+  //  Watch the fields directly instead of wrapping non-inputs in FormInputWrapper
   const bioValue = watch('bio') || '';
   const nameValue = watch('name') || '';
 
@@ -105,7 +105,7 @@ const EditProfileScreen = () => {
       <ScrollView contentContainerStyle={styles.container}>
         {/* Avatar */}
         <View style={styles.avatarContainer}>
-          {/* ✅ FIX 2: Pass the watched nameValue directly to the Avatar */}
+          {/* Pass the watched nameValue directly to the Avatar */}
           <Avatar name={nameValue} size={100} variant="circular" />
           
           {/* <Text style={[styles.changeAvatarText, { color: theme.primary, marginTop: 12 }]}>

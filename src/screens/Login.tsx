@@ -62,7 +62,7 @@ const LoginScreen = () => {
       }
     };
     initSession();
-  }, [user]); // 👈 Re-run if the user object populates late
+  }, [user]); //  Re-run if the user object populates late
 
   const handleSendOTP = async () => {
     if (phone.length < 10) {
@@ -145,7 +145,7 @@ const LoginScreen = () => {
 
       await firestore().collection('users').doc(uid).set(freshUser);
 
-      // VERY IMPORTANT: Set user before unlocking
+      // Set user before unlocking
       setUser(freshUser as any);
       setUnlocked(true);
       

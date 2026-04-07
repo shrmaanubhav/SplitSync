@@ -86,7 +86,7 @@ const AddExpenseScreen = () => {
       return;
     }
 
-    // ✅ FIX: Format splits to include the math, not just IDs
+    // Format splits to include the math, not just IDs
     const formattedSplits = splits.map(s => ({
       userId: s.id,
       amountOwed: Number(s.amount) || 0
@@ -107,7 +107,7 @@ const AddExpenseScreen = () => {
         description,
         paidBy,
         amount: amt,
-        participants: formattedSplits, // Send full array with math
+        participants: formattedSplits, 
       });
 
       navigation.goBack();

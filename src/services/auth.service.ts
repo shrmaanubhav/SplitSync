@@ -64,7 +64,7 @@ export const authService = {
   // ---------- PIN ----------
 
   async savePin(pin: string) {
-    // If an empty string is explicitly passed, wipe the PIN (used for deactivation)
+    // If an empty string is explicitly passed, wipe the PIN 
     if (!pin) {
       await Keychain.resetGenericPassword();
       await AsyncStorage.removeItem('onboardingComplete');

@@ -4,7 +4,7 @@ import { useRoute, useNavigation } from '@react-navigation/native';
 import firestore from '@react-native-firebase/firestore';
 import { useStore } from '../store/useStore';
 import { getCurrentTheme } from '../services/theme.service';
-import { formatCurrency } from '../utils/format'; // ✅ Added for consistent currency formatting
+import { formatCurrency } from '../utils/format'; 
 
 const SettleScreen = () => {
   const route = useRoute<any>();
@@ -26,7 +26,6 @@ const SettleScreen = () => {
         from: item.from,
         to: item.to,
         amount: item.amount,
-        // ✅ FIX: Replaced Date.now() with native Firebase Timestamp
         createdAt: firestore.Timestamp.now(), 
       });
 
@@ -67,7 +66,6 @@ const SettleScreen = () => {
 
       <TouchableOpacity
         activeOpacity={0.8}
-        // ✅ Replaced hardcoded 'green' with an outlined Orange button for visual hierarchy
         style={[styles.btnOutline, { borderColor: theme.primary }]}
         onPress={() => settle(item)}
       >
@@ -170,7 +168,7 @@ const styles = StyleSheet.create({
     textTransform: 'uppercase',
   },
 
-  // Secondary Button (Request)
+  // Secondary Button 
   btnOutline: {
     paddingHorizontal: 20,
     paddingVertical: 10,
@@ -190,7 +188,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: 1,
-    borderStyle: 'dashed', // Makes it look intentional
+    borderStyle: 'dashed', 
   },
   emptyStateText: {
     fontSize: 15,

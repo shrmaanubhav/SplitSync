@@ -6,7 +6,6 @@ import authService from '../services/auth.service';
 export const useAuth = () => {
   const [loading, setLoading] = useState(true);
   
-  // 🛡️ Track if this is a fresh app launch vs a background token refresh
   const isInitialMount = useRef(true); 
 
   useEffect(() => {
@@ -36,7 +35,7 @@ export const useAuth = () => {
 
         const userData = doc.data();
 
-        // 🛡️ GUARD 1: Ignore Soft-Deleted or Incomplete Users
+        // GUARD 1: Ignore Soft-Deleted or Incomplete Users
         if (!userData?.phoneNumber || !userData?.name || userData?.status === 'deleted') {
           setLoading(false);
           return;
@@ -49,9 +48,7 @@ export const useAuth = () => {
         });
         useStore.getState().setIsAuthenticated(true);
 
-        // 🛡️ GUARD 2: THE PERSISTENCE TRAP FIX
-        // Zustand remembers that 'isUnlocked' was true from your last session.
-        // We MUST force it to false on the first boot so the PIN screen appears.
+        // GUARD 2: force zustland to false on the first boot so the PIN screen appears.
         if (isInitialMount.current) {
            // Fresh app launch: ALWAYS lock the app.
            useStore.getState().setUnlocked(false);

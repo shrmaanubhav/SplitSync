@@ -94,7 +94,6 @@ function MainTabs() {
 
 // app
 export default function App() {
-  // 🚨 Notice isAuthenticated is completely removed here to prevent desync bugs
   const { user, isUnlocked, darkMode } = useStore();
   const { loading } = useAuth();
 
@@ -126,14 +125,13 @@ export default function App() {
 
   const theme = darkMode ? CustomDarkTheme : CustomLightTheme;
 
-  console.log('--- ROUTING CHECK ---');
-  console.log('User Object Exists:', !!user);
-  console.log('User Name:', user?.name);
-  console.log('User Phone:', user?.phoneNumber);
-  console.log('Is Unlocked:', isUnlocked);
-  console.log('---------------------');
+  // console.log('--- ROUTING CHECK ---');
+  // console.log('User Object Exists:', !!user);
+  // console.log('User Name:', user?.name);
+  // console.log('User Phone:', user?.phoneNumber);
+  // console.log('Is Unlocked:', isUnlocked);
+  // console.log('---------------------');
 
-// Inside App.tsx, right above return (
   const isAppReady = !!(user?.name && user?.phoneNumber && isUnlocked);
 
   if (loading) {
@@ -155,7 +153,7 @@ export default function App() {
               contentStyle: { backgroundColor: themeColors.background },
             }}
           >
-            {/* 🛡️ ONE SINGLE GATE: If they aren't fully registered AND unlocked, show Login */}
+            {/* If user isn't fully registered and unlocked, show Login */}
             {!isAppReady ? (
               <Stack.Screen
                 name="Login"
@@ -163,7 +161,7 @@ export default function App() {
                 options={{ headerShown: false }}
               />
             ) : (
-              /* 🛡️ Fully registered AND unlocked -> Open the Gates! */
+              /* Fully registered and unlocked -> Open the Gates */
               <>
                 <Stack.Screen name="Main" component={MainTabs} options={{ headerShown: false }} />
                 <Stack.Screen name="GroupDetail" component={GroupDetailScreen} options={{ title: 'Group Details' }} />

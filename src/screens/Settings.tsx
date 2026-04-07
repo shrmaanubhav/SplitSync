@@ -76,7 +76,7 @@ const SettingsScreen = () => {
   // ---------- SECURE DEACTIVATION LOGIC ----------
 
   const initiateDeleteFlow = () => {
-    // 🛡️ THE ULTIMATE SPLITWISE GUARDRAIL
+    // prevent from deleting if account not settled
     const hasUnsettledBalances = balances.some(
       balance => (balance.totalOwed || 0) > 0.01 || (balance.totalDue || 0) > 0.01
     );
@@ -131,11 +131,9 @@ const SettingsScreen = () => {
                 });
 
                 // B. LOGOUT OF FIREBASE & WIPE KEYCHAIN
-                // 🚨 Must happen BEFORE the screen unmounts!
                 await authService.logout();
 
                 // C. WIPE THE STORE FIRST
-                // This instantly unmounts the Settings screen and throws you to LoginScreen
                 logout(); 
                 
               } catch (e) {

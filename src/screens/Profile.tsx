@@ -84,7 +84,7 @@ const ProfileScreen = () => {
                 {user?.name || 'User'}
               </Text>
 
-              {/* ✅ FIX 2: Added the same safe fallback for phone numbers */}
+              {/*safe fallback for phone numbers */}
               <Text style={[styles.userPhone, { color: theme.textSecondary }]}>
                 {user?.phoneNumber || user?.phoneNumber || 'No phone number'}
               </Text>
