@@ -1,5 +1,3 @@
-// Utility Functions (Firebase-safe, no backend dependencies)
-
 // ---------- CURRENCY ----------
 
 export const formatCurrency = (
@@ -69,7 +67,7 @@ export const formatPercentage = (num: number): string => {
 
 export const formatPhoneNumber = (phone: string): string => {
   if (!phone) return '';
-  return phone.replace(/(\d{5})(\d{5})/, '$1 $2'); // Indian format
+  return phone.replace(/(\d{5})(\d{5})/, '$1 $2'); 
 };
 
 // ---------- EMAIL ----------
