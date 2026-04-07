@@ -7,15 +7,24 @@ import {
   ScrollView,
   Alert,
   TouchableOpacity,
+  ActivityIndicator,
 } from 'react-native';
 import { useNavigation, useRoute } from '@react-navigation/native';
+import firestore from '@react-native-firebase/firestore';
+
 import Button from '../components/Button';
 import { useStore } from '../store/useStore';
 import { getCurrentTheme } from '../services/theme.service';
 import Screen from '../components/Screen';
 import ExpenseSplitSelector from '../components/ExpenseSplitSelector';
 import { expenseService } from '../services/expense.service';
-import firestore from '@react-native-firebase/firestore';
+
+// Add this interface so TypeScript knows what a fetched user looks like
+interface FetchedMember {
+  _id: string;
+  name: string;
+  phoneNumber?: string;
+}
 
 const AddExpenseScreen = () => {
   const navigation = useNavigation();
@@ -24,41 +33,68 @@ const AddExpenseScreen = () => {
 
   const { user } = useStore();
   const theme = getCurrentTheme();
-
-  // Handle Firebase's uid vs old MongoDB _id
   const currentUserId = user?._id || '';
 
   const [group, setGroup] = useState<any>(null);
+  // 🚨 NEW STATE: We will store the hydrated user objects here
+  const [hydratedMembers, setHydratedMembers] = useState<FetchedMember[]>([]); 
+  const [fetchingMembers, setFetchingMembers] = useState(false);
+
   const [description, setDescription] = useState('');
   const [amount, setAmount] = useState('');
   const [splits, setSplits] = useState<any[]>([]);
-  
-  // Default to the current user being the payer to save them a click
   const [paidBy, setPaidBy] = useState<string>(currentUserId); 
   const [loading, setLoading] = useState(false);
 
   const [showPayerDropdown, setShowPayerDropdown] = useState(false);
   const [showSplit, setShowSplit] = useState(false);
 
-  // ---------- FETCH GROUP ----------
+  // ---------- FETCH GROUP & HYDRATE MEMBERS ----------
   useEffect(() => {
     const unsubscribe = firestore()
       .collection('groups')
       .doc(groupId)
-      .onSnapshot(doc => {
+      .onSnapshot(async doc => {
         if (doc.exists()) {
-          setGroup({ id: doc.id, ...doc.data() });
+          // 🚨 FIX 1: Add "as any" so TS knows groupData has a members array
+          const groupData = { id: doc.id, ...(doc.data() as any) };
+          setGroup(groupData);
+
+          const memberIds = groupData.members || [];
+          if (memberIds.length > 0) {
+            setFetchingMembers(true);
+            try {
+              const docs = await Promise.all(
+                memberIds.map((id: string) => firestore().collection('users').doc(id).get())
+              );
+
+              // 🚨 FIX 2: Explicitly type 'd' as 'any'
+              const loadedUsers = docs.map((d: any) => ({
+                _id: d.id,
+                ...(d.data() as any),
+              }));
+
+              setHydratedMembers(loadedUsers);
+            } catch (error) {
+              console.error("Failed to load member names", error);
+            } finally {
+              setFetchingMembers(false);
+            }
+          }
         }
       });
 
     return unsubscribe;
   }, [groupId]);
 
-  if (!group) {
+  if (!group || fetchingMembers) {
     return (
-      <View style={{ padding: 20 }}>
-        <Text style={{ color: theme.textPrimary }}>Loading group...</Text>
-      </View>
+      <Screen>
+        <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
+          <ActivityIndicator size="large" color={theme.primary} />
+          <Text style={{ color: theme.textSecondary, marginTop: 10 }}>Loading group details...</Text>
+        </View>
+      </Screen>
     );
   }
 
@@ -86,13 +122,11 @@ const AddExpenseScreen = () => {
       return;
     }
 
-    // Format splits to include the math, not just IDs
     const formattedSplits = splits.map(s => ({
       userId: s.id,
       amountOwed: Number(s.amount) || 0
     }));
 
-    // Validation: Ensure unequal splits sum up to total
     const totalSplitAmount = formattedSplits.reduce((acc, curr) => acc + curr.amountOwed, 0);
     if (Math.abs(totalSplitAmount - amt) > 0.05) {
       Alert.alert('Error', 'The split amounts must equal the total bill.');
@@ -120,11 +154,11 @@ const AddExpenseScreen = () => {
   }
 
   // ---------- HELPER ----------
+  // 🚨 FIXED: Now it looks up the name from our hydrated array!
   const getMemberName = (memberId: string) => {
     if (memberId === currentUserId) return 'You';
-    // If group.members contains objects, find the name. Otherwise fallback to ID.
-    const memberObj = group.members?.find((m: any) => (m._id || m.id || m) === memberId);
-    return memberObj?.name || memberId;
+    const memberObj = hydratedMembers.find(m => m._id === memberId);
+    return memberObj?.name || 'Unknown User'; 
   };
 
   // ---------- UI ----------
@@ -174,23 +208,21 @@ const AddExpenseScreen = () => {
 
           {showPayerDropdown && (
             <View style={[styles.dropdownList, { backgroundColor: theme.cardBackground, borderColor: theme.border }]}>
-              {(group.members || []).map((member: any) => {
-                const memberId = member._id || member.id || member;
-                return (
-                  <TouchableOpacity
-                    key={memberId}
-                    onPress={() => {
-                      setPaidBy(memberId);
-                      setShowPayerDropdown(false);
-                    }}
-                    style={[styles.dropdownItem, { borderBottomColor: theme.border }]}
-                  >
-                    <Text style={{ color: theme.textPrimary, fontSize: 16 }}>
-                      {getMemberName(memberId)}
-                    </Text>
-                  </TouchableOpacity>
-                );
-              })}
+              {/* 🚨 FIXED: Map over the hydrated members list! */}
+              {hydratedMembers.map((member) => (
+                <TouchableOpacity
+                  key={member._id}
+                  onPress={() => {
+                    setPaidBy(member._id);
+                    setShowPayerDropdown(false);
+                  }}
+                  style={[styles.dropdownItem, { borderBottomColor: theme.border }]}
+                >
+                  <Text style={{ color: theme.textPrimary, fontSize: 16 }}>
+                    {getMemberName(member._id)}
+                  </Text>
+                </TouchableOpacity>
+              ))}
             </View>
           )}
 
@@ -211,10 +243,11 @@ const AddExpenseScreen = () => {
 
           {showSplit && (
             <ExpenseSplitSelector
-              groupMembers={(group.members || []).map((m: any) => {
-                const memberId = m._id || m.id || m;
-                return { id: memberId, name: getMemberName(memberId) };
-              })}
+              // 🚨 FIXED: Pass the real names to the split selector!
+              groupMembers={hydratedMembers.map((m) => ({ 
+                id: m._id, 
+                name: getMemberName(m._id) 
+              }))}
               paidById={paidBy}
               totalAmount={parseFloat(amount) || 0}
               onSplitsChange={setSplits}
