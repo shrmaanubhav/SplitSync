@@ -15,4 +15,10 @@ export type RootStackParamList = {
     groupId: string;
     balances: any;
   };
+
+  SelectPeople: {
+    selectedMembers?: string[];
+    title?: string;
+    mode?: 'single' | 'multiple';
+  };
 };

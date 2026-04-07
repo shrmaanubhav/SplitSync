@@ -56,7 +56,6 @@ const AddExpenseScreen = () => {
       .doc(groupId)
       .onSnapshot(async doc => {
         if (doc.exists()) {
-          // 🚨 FIX 1: Add "as any" so TS knows groupData has a members array
           const groupData = { id: doc.id, ...(doc.data() as any) };
           setGroup(groupData);
 
@@ -67,8 +66,7 @@ const AddExpenseScreen = () => {
               const docs = await Promise.all(
                 memberIds.map((id: string) => firestore().collection('users').doc(id).get())
               );
-
-              // 🚨 FIX 2: Explicitly type 'd' as 'any'
+              
               const loadedUsers = docs.map((d: any) => ({
                 _id: d.id,
                 ...(d.data() as any),
