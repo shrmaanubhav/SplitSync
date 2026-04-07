@@ -94,7 +94,8 @@ function MainTabs() {
 
 // app
 export default function App() {
-  const { isAuthenticated, user, isUnlocked, darkMode } = useStore();
+  // 🚨 Notice isAuthenticated is completely removed here to prevent desync bugs
+  const { user, isUnlocked, darkMode } = useStore();
   const { loading } = useAuth();
 
   const themeColors = getThemeColors(darkMode);
@@ -125,6 +126,16 @@ export default function App() {
 
   const theme = darkMode ? CustomDarkTheme : CustomLightTheme;
 
+  console.log('--- ROUTING CHECK ---');
+  console.log('User Object Exists:', !!user);
+  console.log('User Name:', user?.name);
+  console.log('User Phone:', user?.phoneNumber);
+  console.log('Is Unlocked:', isUnlocked);
+  console.log('---------------------');
+
+// Inside App.tsx, right above return (
+  const isAppReady = !!(user?.name && user?.phoneNumber && isUnlocked);
+
   if (loading) {
     return (
       <View style={styles.loader}>
@@ -144,76 +155,27 @@ export default function App() {
               contentStyle: { backgroundColor: themeColors.background },
             }}
           >
-            {/* 🛡️ THE FIX: Strictly require name and phoneNumber to access the app */}
-            {isAuthenticated && user?.name && user?.phoneNumber && isUnlocked ? (
-              <>
-                <Stack.Screen
-                  name="Main"
-                  component={MainTabs}
-                  options={{ headerShown: false }}
-                />
-                {/* ... rest of your main stack screens ... */}
-
-                <Stack.Screen
-                  name="GroupDetail"
-                  component={GroupDetailScreen}
-                  options={{ title: 'Group Details' }}
-                />
-
-                <Stack.Screen
-                  name="Settings"
-                  component={SettingsScreen}
-                  options={{ title: 'Settings' }}
-                />
-
-                <Stack.Screen
-                  name="Friends"
-                  component={FriendsScreen}
-                  options={{ title: 'Friends' }}
-                />
-
-                <Stack.Screen
-                  name="EditProfile"
-                  component={EditProfileScreen}
-                  options={{ title: 'Edit Profile' }}
-                />
-
-                <Stack.Screen
-                  name="AddExpense"
-                  component={AddExpenseScreen}
-                  options={{ title: 'Add Expense' }}
-                />
-
-                <Stack.Screen
-                  name="CreateGroup"
-                  component={CreateGroupScreen}
-                  options={{ title: 'Create Group' }}
-                />
-
-                <Stack.Screen
-                  name="SelectPeople"
-                  component={SelectPeopleScreen}
-                  options={{ title: 'Select People', headerShown: false }}
-                />
-
-                <Stack.Screen
-                  name="SettleScreen"
-                  component={SettleScreen}
-                  options={{ title: 'Settle Up' }}
-                />
-
-                <Stack.Screen
-                  name="BalancesScreen"
-                  component={BalancesScreen}
-                  options={{ title: 'Balances' }}
-                />
-              </>
-            ) : (
+            {/* 🛡️ ONE SINGLE GATE: If they aren't fully registered AND unlocked, show Login */}
+            {!isAppReady ? (
               <Stack.Screen
                 name="Login"
                 component={LoginScreen}
                 options={{ headerShown: false }}
               />
+            ) : (
+              /* 🛡️ Fully registered AND unlocked -> Open the Gates! */
+              <>
+                <Stack.Screen name="Main" component={MainTabs} options={{ headerShown: false }} />
+                <Stack.Screen name="GroupDetail" component={GroupDetailScreen} options={{ title: 'Group Details' }} />
+                <Stack.Screen name="Settings" component={SettingsScreen} options={{ title: 'Settings' }} />
+                <Stack.Screen name="Friends" component={FriendsScreen} options={{ title: 'Friends' }} />
+                <Stack.Screen name="EditProfile" component={EditProfileScreen} options={{ title: 'Edit Profile' }} />
+                <Stack.Screen name="AddExpense" component={AddExpenseScreen} options={{ title: 'Add Expense' }} />
+                <Stack.Screen name="CreateGroup" component={CreateGroupScreen} options={{ title: 'Create Group' }} />
+                <Stack.Screen name="SelectPeople" component={SelectPeopleScreen} options={{ title: 'Select People', headerShown: false }} />
+                <Stack.Screen name="SettleScreen" component={SettleScreen} options={{ title: 'Settle Up' }} />
+                <Stack.Screen name="BalancesScreen" component={BalancesScreen} options={{ title: 'Balances' }} />
+              </>
             )}
           </Stack.Navigator>
         </NavigationContainer>
@@ -221,7 +183,6 @@ export default function App() {
     </SelectionProvider>
   );
 }
-
 // styles
 const styles = StyleSheet.create({
   loader: {

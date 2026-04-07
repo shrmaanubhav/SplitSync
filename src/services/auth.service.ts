@@ -51,24 +51,52 @@ export const authService = {
   },
 
   async logout() {
-    await auth().signOut();
+    try {
+      await auth().signOut();
+      // Ensure local security is wiped completely on standard logout
+      await Keychain.resetGenericPassword();
+      await AsyncStorage.removeItem('onboardingComplete');
+    } catch (error) {
+      console.error('Logout error:', error);
+    }
   },
 
   // ---------- PIN ----------
 
   async savePin(pin: string) {
+    // If an empty string is explicitly passed, wipe the PIN (used for deactivation)
+    if (!pin) {
+      await Keychain.resetGenericPassword();
+      await AsyncStorage.removeItem('onboardingComplete');
+      return;
+    }
+
+    // Strict Guard: Prevent saving short or empty PINs during setup
+    if (pin.length < 4) {
+      throw new Error('A 4-digit PIN is strictly required for security.');
+    }
+
     await Keychain.setGenericPassword('app_pin', pin);
     await AsyncStorage.setItem('onboardingComplete', 'true');
   },
 
   async getSavedPin() {
-    const creds = await Keychain.getGenericPassword();
-    return creds ? creds.password : null;
+    try {
+      const creds = await Keychain.getGenericPassword();
+      return creds ? creds.password : null;
+    } catch (error) {
+      console.error('Keychain fetch error:', error);
+      return null;
+    }
   },
 
   async hasOnboarded() {
-    const val = await AsyncStorage.getItem('onboardingComplete');
-    return val === 'true';
+    try {
+      const val = await AsyncStorage.getItem('onboardingComplete');
+      return val === 'true';
+    } catch {
+      return false;
+    }
   },
 };
 

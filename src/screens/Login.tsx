@@ -31,41 +31,38 @@ const LoginScreen = () => {
   const [initialChecking, setInitialChecking] = useState(true);
 
   const theme = getCurrentTheme();
-  // Added 'logout' from store to help clear ghost data
   const { setUser, setUnlocked, user, logout } = useStore();
 
   useEffect(() => {
-    const checkSession = async () => {
+    const initSession = async () => {
       try {
         const fbUser = authService.getCurrentUser();
         const savedPin = await authService.getSavedPin();
-        
-        if (fbUser) {
-          const doc = await firestore().collection('users').doc(fbUser.uid).get();
-          const userData = doc.data();
 
-          // 🛡️ GUARD: Only proceed if the doc exists AND has a name/phone
-          if (doc.exists() && userData?.phoneNumber && userData?.name) {
-            setUser(userData as any);
-            setName(userData.name); 
-            if (savedPin) {
-              setStep('pin');
-            } else {
-              setStep('setup');
-            }
+        // If Firebase says we are logged in
+        if (fbUser) {
+          // 🛡️ CRITICAL FIX: Check the Zustand store first, NOT Firestore.
+          // useAuth already fetched the user data for us during App load.
+          if (user?.name && user?.phoneNumber) {
+             // They are fully registered! Just ask for their PIN.
+            setStep(savedPin ? 'pin' : 'setup');
+            setName(user.name);
           } else {
-            // No valid Firestore data found - force Setup
+             // Firebase user exists, but no valid profile found (new or deleted user)
             setStep('setup');
           }
+        } else {
+          // No Firebase session
+          setStep('auth');
         }
       } catch (error) {
-        console.error("Session check error:", error);
+        console.error("Init check error:", error);
       } finally {
         setInitialChecking(false);
       }
     };
-    checkSession();
-  }, []);
+    initSession();
+  }, [user]); // 👈 Re-run if the user object populates late
 
   const handleSendOTP = async () => {
     if (phone.length < 10) {
@@ -89,17 +86,17 @@ const LoginScreen = () => {
       const fbUser = await authService.verifyOTP(otp);
       if (!fbUser) throw new Error('Verification failed');
       
+      // Mid-session update: fetch Firestore manually to see if they are a returning user
       const doc = await firestore().collection('users').doc(fbUser.uid).get();
       const userData = doc.data();
 
-      // ✅ FIX: If the user doc is missing or scrubbed, stay on 'setup'
-      // and DO NOT update the store user yet.
-      if (doc.exists() && userData?.phoneNumber && userData?.name) {
+      if (doc.exists() && userData?.phoneNumber && userData?.name && userData?.status !== 'deleted') {
         setUser(userData as any);
         setName(userData.name);
         setStep('pin'); 
       } else {
-        setUser(null); // Clear any ghost user in store
+        setUser(null);
+        setName('');
         setStep('setup');
       }
     } catch (e: any) {
@@ -110,8 +107,11 @@ const LoginScreen = () => {
   };
 
   const handlePinUnlock = async () => {
-    const savedPin = await authService.getSavedPin();
-    if (pin === savedPin) {
+    const savedPinRaw = await authService.getSavedPin();
+    const actualSavedPin = String(savedPinRaw || '').trim();
+    const enteredPin = String(pin).trim();
+
+    if (enteredPin === actualSavedPin) {
       setUnlocked(true);
     } else {
       setPin('');
@@ -122,7 +122,7 @@ const LoginScreen = () => {
   const handleSetup = async () => {
     try {
       if (!name.trim() || pin.length < 4) {
-        throw new Error('Please provide your name and a 4-digit PIN.');
+        throw new Error('Please provide your full name and a 4-digit security PIN.');
       }
       setLoading(true);
       const fbUser = authService.getCurrentUser();
@@ -131,10 +131,8 @@ const LoginScreen = () => {
       
       if (!uid) throw new Error('Session expired.');
 
-      // 1. Save PIN locally first
       await authService.savePin(pin);
 
-      // 2. Prepare the new user object
       const freshUser = {
         _id: uid,
         name: name.trim(),
@@ -145,10 +143,9 @@ const LoginScreen = () => {
         status: 'active'
       };
 
-      // 3. Write to Firestore WITHOUT merge:true to overwrite the "deleted" shell
       await firestore().collection('users').doc(uid).set(freshUser);
 
-      // 4. Update store and unlock ONLY AFTER firestore is successful
+      // VERY IMPORTANT: Set user before unlocking
       setUser(freshUser as any);
       setUnlocked(true);
       
@@ -160,7 +157,7 @@ const LoginScreen = () => {
   };
 
   const handleResetFlow = () => {
-    logout(); // Clear everything
+    logout();
     setOtpSent(false);
     setOtp('');
     setPhone('');
@@ -184,11 +181,11 @@ const LoginScreen = () => {
           </View>
           <Text style={[styles.title, { color: theme.textPrimary }]}>
             {step === 'pin' ? `Welcome back, ${user?.name?.split(' ')[0] || 'User'}` : 
-             step === 'setup' ? (user?.name ? 'Security PIN' : 'Create Account') : 'Welcome to SplitSync'}
+             step === 'setup' ? 'Create Account' : 'Welcome to SplitSync'}
           </Text>
           <Text style={[styles.subtitle, { color: theme.textSecondary }]}>
             {step === 'pin' ? 'Enter your security PIN to unlock.' : 
-             step === 'setup' ? 'Set a 4-digit PIN to protect your account.' : 
+             step === 'setup' ? 'Set up your profile and PIN.' : 
              'Expense splitting, synchronized.'}
           </Text>
         </View>
@@ -221,7 +218,11 @@ const LoginScreen = () => {
                   maxLength={6}
                 />
               )}
-              <Button title={otpSent ? "Verify & Continue" : "Continue"} onPress={otpSent ? handleVerifyOTP : handleSendOTP} loading={loading} />
+              <Button 
+                title={otpSent ? "Verify & Continue" : "Continue"} 
+                onPress={otpSent ? handleVerifyOTP : handleSendOTP} 
+                loading={loading} 
+              />
             </View>
           )}
 
@@ -246,16 +247,13 @@ const LoginScreen = () => {
 
           {step === 'setup' && (
             <View style={styles.inputWrapper}>
-              {/* Show name input if we don't have a valid name in store */}
-              {!user?.name && (
-                <TextInput
-                  style={[styles.input, { backgroundColor: theme.cardBackground, color: theme.textPrimary, borderColor: theme.border }]}
-                  placeholder="Full Name"
-                  placeholderTextColor={theme.textTertiary}
-                  value={name}
-                  onChangeText={setName}
-                />
-              )}
+              <TextInput
+                style={[styles.input, { backgroundColor: theme.cardBackground, color: theme.textPrimary, borderColor: theme.border }]}
+                placeholder="Full Name"
+                placeholderTextColor={theme.textTertiary}
+                value={name}
+                onChangeText={setName}
+              />
               <TextInput
                 style={[styles.input, { backgroundColor: theme.cardBackground, color: theme.textPrimary, borderColor: theme.border }]}
                 placeholder="Create 4-Digit PIN"
@@ -266,7 +264,7 @@ const LoginScreen = () => {
                 maxLength={4}
                 secureTextEntry
               />
-              <Button title="Set Security PIN" onPress={handleSetup} loading={loading} />
+              <Button title="Complete Setup" onPress={handleSetup} loading={loading} />
             </View>
           )}
         </View>
