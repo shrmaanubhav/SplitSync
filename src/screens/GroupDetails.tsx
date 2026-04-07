@@ -5,6 +5,7 @@ import {
   StyleSheet,
   FlatList,
   TouchableOpacity,
+  Alert,
 } from 'react-native';
 import {
   useNavigation,
@@ -18,6 +19,7 @@ import { getBalances } from '../services/balance.service';
 import { getSettlements } from '../services/settlement.service';
 import { RootStackParamList } from '../types/navigation.types';
 import { useStore } from '../store/useStore';
+import { useSelection } from '../contexts/SelectionContext';
 
 const GroupDetailScreen = () => {
   const navigation = useNavigation<NavigationProp<RootStackParamList>>();
@@ -33,6 +35,8 @@ const GroupDetailScreen = () => {
 
   const { user } = useStore();
   const theme = getCurrentTheme();
+  // 🚨 NEW: Bring in the selection context!
+  const { setSelectionCallback } = useSelection();
   
   const currentUserId = (user as any)?.uid || user?._id;
 
@@ -137,6 +141,52 @@ const GroupDetailScreen = () => {
     });
   };
 
+  // ---------- MANAGE MEMBERS LOGIC ----------
+  const handleManageMembers = () => {
+    // 1. Tell React what to do when they hit "Confirm" on the selection screen
+    setSelectionCallback(() => async (selectedUsers: any[]) => {
+      const newMemberIds = selectedUsers.map(u => u._id);
+
+      // Force the current user to stay in the group (so they don't accidentally lock themselves out)
+      if (!newMemberIds.includes(currentUserId)) {
+        newMemberIds.push(currentUserId);
+      }
+
+      // 🛡️ SECURITY CHECK: Did they try to remove someone?
+      const removedMembers = group.members.filter((id: string) => !newMemberIds.includes(id));
+      
+      // If someone is being removed, check if their balance is strictly 0
+      const invalidRemovals = removedMembers.filter((id: string) => {
+        const userBalance = balances[id] || 0;
+        return Math.abs(userBalance) > 0.01; // Using 0.01 to avoid floating point math bugs
+      });
+
+      if (invalidRemovals.length > 0) {
+        Alert.alert(
+          'Cannot Remove Member', 
+          'You cannot remove a member who owes money or is owed money. Please settle up their expenses first!'
+        );
+        return;
+      }
+
+      // If safe, update Firestore!
+      try {
+        await firestore().collection('groups').doc(groupId).update({
+          members: newMemberIds
+        });
+      } catch (e) {
+        Alert.alert('Error', 'Failed to update members.');
+      }
+    });
+
+    // 2. Send them to the SelectPeople screen with the CURRENT members pre-selected
+    navigation.navigate('SelectPeople', {
+      selectedMembers: group.members, 
+      title: 'Manage Members',
+      mode: 'multiple',
+    });
+  };
+
   // show expenses
   const renderExpense = ({ item }: any) => {
     const dateObj = item.createdAt?.toDate ? item.createdAt.toDate() : new Date(item.createdAt);
@@ -220,6 +270,17 @@ const GroupDetailScreen = () => {
             Settle up
           </Text>
         </TouchableOpacity>
+
+        {/* 🚨 NEW: Manage Members Button */}
+        <TouchableOpacity
+          activeOpacity={0.8}
+          style={[styles.secondaryBtn, { borderColor: theme.border }]}
+          onPress={handleManageMembers}
+        >
+          <Text style={{ color: theme.textPrimary, fontWeight: '700', fontSize: 15, textTransform: 'uppercase' }}>
+            Members
+          </Text>
+        </TouchableOpacity>
       </View>
 
       {/* LIST */}
@@ -258,15 +319,25 @@ const styles = StyleSheet.create({
   actions: {
     flexDirection: 'row',
     marginBottom: 20,
+    gap: 12, // Adds space between the buttons
   },
   primaryBtn: {
-    paddingHorizontal: 24,
+    flex: 1,
     paddingVertical: 12,
     borderRadius: 12,
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.2,
     shadowRadius: 4,
     elevation: 4,
+    alignItems: 'center',
+  },
+  secondaryBtn: {
+    flex: 1,
+    paddingVertical: 12,
+    borderRadius: 12,
+    borderWidth: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   row: {
     flexDirection: 'row',
