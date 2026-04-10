@@ -192,6 +192,29 @@ const GroupDetailScreen = () => {
     const dateObj = item.createdAt?.toDate ? item.createdAt.toDate() : new Date(item.createdAt);
     const dateString = dateObj.toDateString() !== 'Invalid Date' ? dateObj.toDateString().slice(4, 10) : 'N/A';
 
+    // 🚨 NEW: Check if this is a settlement to format the text and icon differently
+    const isSettlement = item.isSettlement === true;
+    let titleText;
+    let iconEmoji = '💸'; // Default for normal expenses
+
+    if (isSettlement && item.participants?.length > 0) {
+      // It's a settlement! Find out who received the money.
+      const receiverId = item.participants[0].userId;
+      iconEmoji = '🤝'; 
+      titleText = (
+        <Text style={{ color: theme.textPrimary, fontSize: 15, fontWeight: '600' }}>
+          {getName(item.paidBy)} paid <Text style={{ fontWeight: '800' }}>₹{item.amount}</Text> to {getName(receiverId)}
+        </Text>
+      );
+    } else {
+      // It's a normal group expense
+      titleText = (
+        <Text style={{ color: theme.textPrimary, fontSize: 15, fontWeight: '600' }}>
+          {getName(item.paidBy)} paid <Text style={{ fontWeight: '800' }}>₹{item.amount}</Text>
+        </Text>
+      );
+    }
+
     return (
       <View style={styles.row}>
         {/* DATE */}
@@ -203,14 +226,12 @@ const GroupDetailScreen = () => {
 
         {/* ICON */}
         <View style={[styles.icon, { backgroundColor: theme.cardBackground, borderColor: theme.border, borderWidth: 1 }]}>
-          <Text style={{ fontSize: 16 }}>💸</Text>
+          <Text style={{ fontSize: 16 }}>{iconEmoji}</Text>
         </View>
 
         {/* TEXT */}
         <View style={{ flex: 1, justifyContent: 'center' }}>
-          <Text style={{ color: theme.textPrimary, fontSize: 15, fontWeight: '600' }}>
-            {getName(item.paidBy)} paid <Text style={{ fontWeight: '800' }}>₹{item.amount}</Text>
-          </Text>
+          {titleText}
 
           <Text style={{ color: theme.textSecondary, marginTop: 2, fontSize: 13 }}>
             {item.description || 'Expense'}
