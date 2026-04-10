@@ -13,7 +13,8 @@ interface User {
   createdAt?: number;
   status?: 'active' | 'deleted';
   bio?: string;
-  friends?:string[];
+  upiId?: string; 
+  friends?: string[];
 }
 
 interface Group {

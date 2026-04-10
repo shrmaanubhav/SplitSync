@@ -34,12 +34,21 @@ type NavigationPropType = NativeStackNavigationProp<
 interface ProfileFormData {
   name: string;
   bio: string | null;
+  upiId: string | null; // 🚨 Added UPI ID
 }
 
 // ---------- VALIDATION ----------
 const schema: yup.ObjectSchema<ProfileFormData> = yup.object({
   name: yup.string().required('Name is required').min(2, 'Name must be at least 2 characters').max(50),
   bio: yup.string().nullable().default(''),
+  // 🚨 Make it optional, but if entered, ensure it looks somewhat like a VPA (contains an '@')
+  upiId: yup.string()
+    .nullable()
+    .test('is-valid-upi', 'UPI ID must contain an @ symbol', (value) => {
+      if (!value) return true; // It's optional, so empty is fine
+      return value.includes('@');
+    })
+    .default(''),
 });
 
 // ---------- COMPONENT ----------
@@ -55,6 +64,7 @@ const EditProfileScreen = () => {
     defaultValues: {
       name: user?.name || '',
       bio: user?.bio ?? '',
+      upiId: user?.upiId ?? '', // 🚨 Pre-fill if exists
     },
   });
 
@@ -64,38 +74,60 @@ const EditProfileScreen = () => {
     watch,
   } = methods;
 
-  //  Watch the fields directly instead of wrapping non-inputs in FormInputWrapper
   const bioValue = watch('bio') || '';
   const nameValue = watch('name') || '';
 
-  // ---------- SUBMIT ----------
+// ---------- SUBMIT ----------
   const onSubmit: SubmitHandler<ProfileFormData> = async (data) => {
     if (!user?._id) return;
 
-    setLoading(true);
+    // Clean it up: lowercase and trim spaces
+    const cleanUpiId = (data.upiId || '').trim().toLowerCase();
 
-    try {
-      await firestore()
-        .collection('users')
-        .doc(user._id)
-        .update({
-          name: data.name.trim(),
+    // 1. Extract the actual saving process into a helper function
+    const saveToDatabase = async () => {
+      setLoading(true);
+      try {
+        await firestore()
+          .collection('users')
+          .doc(user._id)
+          .update({
+            name: data.name.trim(),
+            bio: data.bio || '',
+            upiId: cleanUpiId, // Save to Firestore
+          });
+
+        setUser({
+          ...user,
+          name: data.name,
           bio: data.bio || '',
-        });
+          upiId: cleanUpiId, // Save to local Zustand store
+        } as any);
 
-      setUser({
-        ...user,
-        name: data.name,
-        bio: data.bio || '',
-      } as any);
+        Alert.alert('Success', 'Profile updated');
+        navigation.goBack();
+      } catch (e) {
+        console.error(e);
+        Alert.alert('Error', 'Failed to update profile');
+      } finally {
+        setLoading(false);
+      }
+    };
 
-      Alert.alert('Success', 'Profile updated');
-      navigation.goBack();
-    } catch (e) {
-      console.error(e);
-      Alert.alert('Error', 'Failed to update profile');
-    } finally {
-      setLoading(false);
+    // 2. Check if they entered a NEW or CHANGED UPI ID
+    if (cleanUpiId && cleanUpiId !== (user.upiId || '')) {
+      // Pop the confirmation alert!
+      Alert.alert(
+        'Confirm UPI ID',
+        `You entered:\n\n${cleanUpiId}\n\nIs this exactly correct? Friends will use this to send you real money.`,
+        [
+          { text: 'Let me edit', style: 'cancel' },
+          { text: 'Yes, it is correct', onPress: saveToDatabase },
+        ]
+      );
+    } else {
+      // If no UPI ID was entered, or it didn't change, just save immediately
+      saveToDatabase();
     }
   };
 
@@ -105,12 +137,7 @@ const EditProfileScreen = () => {
       <ScrollView contentContainerStyle={styles.container}>
         {/* Avatar */}
         <View style={styles.avatarContainer}>
-          {/* Pass the watched nameValue directly to the Avatar */}
           <Avatar name={nameValue} size={100} variant="circular" />
-          
-          {/* <Text style={[styles.changeAvatarText, { color: theme.primary, marginTop: 12 }]}>
-            Change Avatar
-          </Text> */}
         </View>
 
         <FormProvider {...methods}>
@@ -124,17 +151,12 @@ const EditProfileScreen = () => {
                 name="name"
                 style={[
                   styles.input,
-                  {
-                    backgroundColor: theme.cardBackground,
-                    color: theme.textPrimary,
-                    borderColor: theme.border,
-                  },
+                  { backgroundColor: theme.cardBackground, color: theme.textPrimary, borderColor: theme.border },
                 ]}
                 placeholder="Enter name"
                 placeholderTextColor={theme.textSecondary}
               />
               {errors.name && (
-                // ✅ FIX 3: Replaced theme.danger with a safe hex code (#FF3B30)
                 <Text style={[styles.errorText, { color: '#FF3B30' }]}>
                   {errors.name.message}
                 </Text>
@@ -150,11 +172,7 @@ const EditProfileScreen = () => {
                 name="bio"
                 style={[
                   styles.textArea,
-                  {
-                    backgroundColor: theme.cardBackground,
-                    color: theme.textPrimary,
-                    borderColor: theme.border,
-                  },
+                  { backgroundColor: theme.cardBackground, color: theme.textPrimary, borderColor: theme.border },
                 ]}
                 placeholder="About you"
                 multiline
@@ -170,7 +188,38 @@ const EditProfileScreen = () => {
               )}
             </View>
 
-            {/* PHONE */}
+            {/* 🚨 UPI ID SECTION */}
+            <View style={styles.inputGroup}>
+              <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+                <Text style={[styles.label, { color: theme.textPrimary }]}>
+                  UPI ID
+                </Text>
+                <Text style={{ color: theme.textSecondary, fontSize: 12, marginBottom: 8 }}>
+                  Optional
+                </Text>
+              </View>
+              <FormInputWrapper
+                name="upiId"
+                style={[
+                  styles.input,
+                  { backgroundColor: theme.cardBackground, color: theme.textPrimary, borderColor: theme.border },
+                ]}
+                placeholder="e.g. name@bank"
+                placeholderTextColor={theme.textSecondary}
+                autoCapitalize="none"
+                autoCorrect={false}
+              />
+              {errors.upiId && (
+                <Text style={[styles.errorText, { color: '#FF3B30' }]}>
+                  {errors.upiId.message}
+                </Text>
+              )}
+              <Text style={{ color: theme.textSecondary, fontSize: 12, marginTop: 4 }}>
+                Allows friends to pay you back directly via Google Pay, PhonePe, etc.
+              </Text>
+            </View>
+
+            {/* PHONE (Read Only) */}
             <View style={styles.inputGroup}>
               <Text style={[styles.label, { color: theme.textPrimary }]}>
                 Phone
@@ -178,20 +227,16 @@ const EditProfileScreen = () => {
               <TextInput
                 style={[
                   styles.input,
-                  {
-                    backgroundColor: theme.cardBackground,
-                    color: theme.textSecondary,
-                    borderColor: theme.border,
-                  },
+                  { backgroundColor: theme.cardBackground, color: theme.textSecondary, borderColor: theme.border },
                 ]}
-                // Handles missing phoneNumber safely
-                value={user?.phoneNumber || user?.phoneNumber || 'No phone added'} 
+                value={user?.phoneNumber || 'No phone added'} 
                 editable={false}
               />
               <Text style={{ color: theme.textSecondary, fontSize: 12, marginTop: 4 }}>
                 Phone number cannot be changed
               </Text>
             </View>
+
           </View>
         </FormProvider>
 
@@ -225,10 +270,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginBottom: 30,
   },
-  changeAvatarText: {
-    fontSize: 16,
-    fontWeight: '600',
-  },
   form: {
     flex: 1,
   },
@@ -242,7 +283,7 @@ const styles = StyleSheet.create({
   },
   input: {
     borderWidth: 1,
-    borderRadius: 12, // Smoothed out border radius to match your new branding
+    borderRadius: 12, 
     padding: 16,
     fontSize: 16,
   },
