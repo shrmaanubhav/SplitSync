@@ -143,16 +143,15 @@ const GroupDetailScreen = () => {
 
   // ---------- MANAGE MEMBERS LOGIC ----------
   const handleManageMembers = () => {
-    // 1. Tell React what to do when they hit "Confirm" on the selection screen
     setSelectionCallback(() => async (selectedUsers: any[]) => {
       const newMemberIds = selectedUsers.map(u => u._id);
 
-      // Force the current user to stay in the group (so they don't accidentally lock themselves out)
+      // Force the current user to stay in the group 
       if (!newMemberIds.includes(currentUserId)) {
         newMemberIds.push(currentUserId);
       }
 
-      // 🛡️ SECURITY CHECK: Did they try to remove someone?
+      // SECURITY CHECK: Did they try to remove someone?
       const removedMembers = group.members.filter((id: string) => !newMemberIds.includes(id));
       
       // If someone is being removed, check if their balance is strictly 0
@@ -192,13 +191,13 @@ const GroupDetailScreen = () => {
     const dateObj = item.createdAt?.toDate ? item.createdAt.toDate() : new Date(item.createdAt);
     const dateString = dateObj.toDateString() !== 'Invalid Date' ? dateObj.toDateString().slice(4, 10) : 'N/A';
 
-    // 🚨 NEW: Check if this is a settlement to format the text and icon differently
+    // Check if this is a settlement to format the text and icon differently
     const isSettlement = item.isSettlement === true;
     let titleText;
     let iconEmoji = '💸'; // Default for normal expenses
 
     if (isSettlement && item.participants?.length > 0) {
-      // It's a settlement! Find out who received the money.
+      // settlement transaction
       const receiverId = item.participants[0].userId;
       iconEmoji = '🤝'; 
       titleText = (
@@ -292,7 +291,7 @@ const GroupDetailScreen = () => {
           </Text>
         </TouchableOpacity>
 
-        {/* 🚨 NEW: Manage Members Button */}
+        {/*  Manage Members Button */}
         <TouchableOpacity
           activeOpacity={0.8}
           style={[styles.secondaryBtn, { borderColor: theme.border }]}
@@ -340,7 +339,7 @@ const styles = StyleSheet.create({
   actions: {
     flexDirection: 'row',
     marginBottom: 20,
-    gap: 12, // Adds space between the buttons
+    gap: 12, 
   },
   primaryBtn: {
     flex: 1,

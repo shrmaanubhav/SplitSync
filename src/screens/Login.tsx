@@ -27,6 +27,8 @@ const LoginScreen = () => {
   const [otpSent, setOtpSent] = useState(false);
   const [pin, setPin] = useState('');
   const [name, setName] = useState('');
+  // 🚨 NEW: Added UPI ID state
+  const [upiId, setUpiId] = useState(''); 
   const [loading, setLoading] = useState(false);
   const [initialChecking, setInitialChecking] = useState(true);
 
@@ -39,20 +41,14 @@ const LoginScreen = () => {
         const fbUser = authService.getCurrentUser();
         const savedPin = await authService.getSavedPin();
 
-        // If Firebase says we are logged in
         if (fbUser) {
-          // 🛡️ CRITICAL FIX: Check the Zustand store first, NOT Firestore.
-          // useAuth already fetched the user data for us during App load.
           if (user?.name && user?.phoneNumber) {
-             // They are fully registered! Just ask for their PIN.
             setStep(savedPin ? 'pin' : 'setup');
             setName(user.name);
           } else {
-             // Firebase user exists, but no valid profile found (new or deleted user)
             setStep('setup');
           }
         } else {
-          // No Firebase session
           setStep('auth');
         }
       } catch (error) {
@@ -62,7 +58,7 @@ const LoginScreen = () => {
       }
     };
     initSession();
-  }, [user]); //  Re-run if the user object populates late
+  }, [user]);
 
   const handleSendOTP = async () => {
     if (phone.length < 10) {
@@ -86,17 +82,18 @@ const LoginScreen = () => {
       const fbUser = await authService.verifyOTP(otp);
       if (!fbUser) throw new Error('Verification failed');
       
-      // Mid-session update: fetch Firestore manually to see if they are a returning user
       const doc = await firestore().collection('users').doc(fbUser.uid).get();
       const userData = doc.data();
+      const savedPin = await authService.getSavedPin();
 
       if (doc.exists() && userData?.phoneNumber && userData?.name && userData?.status !== 'deleted') {
         setUser(userData as any);
         setName(userData.name);
-        setStep('pin'); 
+        setStep(savedPin ? 'pin' : 'setup'); 
       } else {
         setUser(null);
         setName('');
+        setUpiId(''); // Clear just in case
         setStep('setup');
       }
     } catch (e: any) {
@@ -127,16 +124,28 @@ const LoginScreen = () => {
       setLoading(true);
       const fbUser = authService.getCurrentUser();
       const uid = fbUser?.uid;
-      const phoneNumber = fbUser?.phoneNumber;
       
       if (!uid) throw new Error('Session expired.');
 
       await authService.savePin(pin);
 
+      // 🚨 CRITICAL FIX RESTORED: Protect Returning Users logging into a new device
+      if (user?._id) {
+        await firestore().collection('users').doc(uid).update({ name: name.trim() });
+        setUser({ ...user, name: name.trim() } as any);
+        setUnlocked(true);
+        return; 
+      }
+
+      // If they are brand new, build the fresh user profile
+      const phoneNumber = fbUser?.phoneNumber;
+      const cleanUpiId = upiId.trim().toLowerCase();
+
       const freshUser = {
         _id: uid,
         name: name.trim(),
         phoneNumber: phoneNumber || `+91${phone}`, 
+        upiId: cleanUpiId || null, // 🚨 Save the UPI ID!
         currency: 'INR',
         friends: [],
         createdAt: Date.now(),
@@ -145,7 +154,6 @@ const LoginScreen = () => {
 
       await firestore().collection('users').doc(uid).set(freshUser);
 
-      // Set user before unlocking
       setUser(freshUser as any);
       setUnlocked(true);
       
@@ -181,11 +189,11 @@ const LoginScreen = () => {
           </View>
           <Text style={[styles.title, { color: theme.textPrimary }]}>
             {step === 'pin' ? `Welcome back, ${user?.name?.split(' ')[0] || 'User'}` : 
-             step === 'setup' ? 'Create Account' : 'Welcome to SplitSync'}
+             step === 'setup' ? (user?.name ? 'Secure Your Session' : 'Create Account') : 'Welcome to SplitSync'}
           </Text>
           <Text style={[styles.subtitle, { color: theme.textSecondary }]}>
             {step === 'pin' ? 'Enter your security PIN to unlock.' : 
-             step === 'setup' ? 'Set up your profile and PIN.' : 
+             step === 'setup' ? (user?.name ? 'Please set a new 4-digit PIN for this device.' : 'Set up your profile and PIN.') : 
              'Expense splitting, synchronized.'}
           </Text>
         </View>
@@ -254,6 +262,25 @@ const LoginScreen = () => {
                 value={name}
                 onChangeText={setName}
               />
+              
+              {/* 🚨 NEW: UPI ID Input shown only for brand new users */}
+              {!user?.name && (
+                <View>
+                  <TextInput
+                    style={[styles.input, { backgroundColor: theme.cardBackground, color: theme.textPrimary, borderColor: theme.border, marginBottom: 8 }]}
+                    placeholder="UPI ID (Optional, e.g. name@bank)"
+                    placeholderTextColor={theme.textTertiary}
+                    value={upiId}
+                    onChangeText={setUpiId}
+                    autoCapitalize="none"
+                    autoCorrect={false}
+                  />
+                  <Text style={{ color: theme.textSecondary, fontSize: 12, paddingHorizontal: 5, marginBottom: 8 }}>
+                    Allows friends to pay you back directly via UPI apps.
+                  </Text>
+                </View>
+              )}
+
               <TextInput
                 style={[styles.input, { backgroundColor: theme.cardBackground, color: theme.textPrimary, borderColor: theme.border }]}
                 placeholder="Create 4-Digit PIN"

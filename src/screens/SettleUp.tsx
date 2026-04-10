@@ -5,23 +5,23 @@ import firestore from '@react-native-firebase/firestore';
 import { useStore } from '../store/useStore';
 import { getCurrentTheme } from '../services/theme.service';
 import { formatCurrency } from '../utils/format'; 
-import { upiService } from '../services/upi.service'; // Make sure you saved this file!
+import { upiService } from '../services/upi.service'; 
 
 const SettleScreen = () => {
   const route = useRoute<any>();
   const navigation = useNavigation<any>();
   const theme = getCurrentTheme();
+  
+  // Get the current user so we can check if they have a upiId!
   const { user } = useStore();
 
   const { groupId, payList = [], receiveList = [] } = route.params;
 
-  // 🚨 NEW: Store fetched user profiles so we have their Names, Phone Numbers, and UPI IDs
   const [profiles, setProfiles] = useState<Record<string, any>>({});
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     const fetchUserProfiles = async () => {
-      // Get all unique UIDs involved in settlements
       const uniqueUids = new Set([
         ...payList.map((i: any) => i.to), 
         ...receiveList.map((i: any) => i.from)
@@ -53,19 +53,18 @@ const SettleScreen = () => {
     fetchUserProfiles();
   }, []);
 
-  // 🚨 THE MATH FIX: Record settlements as expenses to clear the ledger
   const recordSettlement = async (item: any) => {
     if (!user) return;
     try {
       await firestore()
         .collection('groups')
         .doc(groupId)
-        .collection('expenses') // Must be expenses, not settlements!
+        .collection('expenses') 
         .add({
           description: 'Settlement Payment',
-          paidBy: item.from, // The person paying
+          paidBy: item.from, 
           amount: item.amount,
-          participants: [{ userId: item.to, amountOwed: item.amount }], // The person receiving
+          participants: [{ userId: item.to, amountOwed: item.amount }], 
           isSettlement: true, 
           createdAt: firestore.FieldValue.serverTimestamp(), 
         });
@@ -76,13 +75,11 @@ const SettleScreen = () => {
     }
   };
 
-  // ---------- PAYMENT FLOW ----------
   const handlePayNow = async (item: any) => {
     const targetUser = profiles[item.to];
     const targetName = targetUser?.name || 'User';
 
     if (targetUser?.upiId) {
-      // 1. Trigger the UPI Intent
       await upiService.initiatePayment({
         upiId: targetUser.upiId,
         name: targetName,
@@ -90,7 +87,6 @@ const SettleScreen = () => {
         note: 'SplitSync Settlement'
       });
 
-      // 2. The OS switches to GPay. When they return, ask if it worked!
       setTimeout(() => {
         Alert.alert(
           'Payment Status', 
@@ -109,18 +105,30 @@ const SettleScreen = () => {
     }
   };
 
-  // ---------- REQUEST FLOW ----------
   const handleRequest = (item: any) => {
+    // Check if the current user has a UPI ID
+    if (!user?.upiId) {
+      Alert.alert(
+        'Missing UPI ID',
+        'Add your UPI ID to your profile so your friends know exactly where to send the money!',
+        [
+          { text: 'Later', style: 'cancel' },
+          { text: 'Add Now', onPress: () => navigation.navigate('EditProfile') }
+        ]
+      );
+      return; 
+    }
+
     const targetUser = profiles[item.from];
     const targetName = targetUser?.name || 'User';
-    const msg = `Hey ${targetName}, you owe me ₹${item.amount.toFixed(2)} in the group on SplitSync. Please settle up!`;
     
-    // Open native SMS
+    //  We now automatically inject your UPI ID into the text message!
+    const msg = `Hey ${targetName}, you owe me ₹${item.amount.toFixed(2)} in the group on SplitSync. You can pay me directly at my UPI ID: ${user.upiId}`;
+    
     const phone = targetUser?.phoneNumber || '';
     Linking.openURL(`sms:${phone}?body=${encodeURIComponent(msg)}`);
   };
 
-  // ---------- RENDERERS ----------
   const renderPay = ({ item }: any) => {
     const targetName = profiles[item.to]?.name || 'Loading...';
     return (
@@ -177,6 +185,25 @@ const SettleScreen = () => {
 
   return (
     <View style={[styles.container, { backgroundColor: theme.background }]}>
+      
+      {/* Only shows if you are owed money and missing a UPI ID */}
+      {(!user?.upiId && receiveList.length > 0) && (
+        <TouchableOpacity
+          activeOpacity={0.9}
+          style={[styles.warningBanner, { backgroundColor: theme.primary + '15', borderColor: theme.primary }]}
+          onPress={() => navigation.navigate('EditProfile')}
+        >
+          <Text style={{ fontSize: 24, marginRight: 12 }}>💡</Text>
+          <View style={{ flex: 1 }}>
+            <Text style={{ color: theme.textPrimary, fontWeight: '700', fontSize: 14 }}>Missing UPI ID</Text>
+            <Text style={{ color: theme.textSecondary, fontSize: 13, marginTop: 2 }}>
+              Add your UPI ID so friends can pay you directly.
+            </Text>
+          </View>
+          <Text style={{ color: theme.primary, fontWeight: 'bold', textTransform: 'uppercase' }}>Add Now</Text>
+        </TouchableOpacity>
+      )}
+
       <Text style={[styles.sectionTitle, { color: theme.textPrimary }]}>You Owe</Text>
       <FlatList
         data={payList}
@@ -202,6 +229,17 @@ const styles = StyleSheet.create({
   container: { flex: 1, padding: 20 },
   sectionTitle: { fontSize: 22, fontWeight: '800', marginBottom: 16, letterSpacing: 0.5 },
   listPadding: { paddingBottom: 8 },
+  
+  // BANNER STYLES
+  warningBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 16,
+    borderRadius: 12,
+    borderWidth: 1,
+    marginBottom: 24,
+  },
+
   card: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 16, borderRadius: 16, marginBottom: 12, borderWidth: 1 },
   cardInfo: { flex: 1 },
   cardLabel: { fontSize: 14, marginBottom: 4 },
