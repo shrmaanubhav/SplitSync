@@ -34,14 +34,14 @@ type NavigationPropType = NativeStackNavigationProp<
 interface ProfileFormData {
   name: string;
   bio: string | null;
-  upiId: string | null; // 🚨 Added UPI ID
+  upiId: string | null; 
 }
 
 // ---------- VALIDATION ----------
 const schema: yup.ObjectSchema<ProfileFormData> = yup.object({
   name: yup.string().required('Name is required').min(2, 'Name must be at least 2 characters').max(50),
   bio: yup.string().nullable().default(''),
-  // 🚨 Make it optional, but if entered, ensure it looks somewhat like a VPA (contains an '@')
+  // UPI ID is optional, but if entered, must contain an @ symbol and be saved in lowercase without spaces
   upiId: yup.string()
     .nullable()
     .test('is-valid-upi', 'UPI ID must contain an @ symbol', (value) => {
@@ -64,7 +64,7 @@ const EditProfileScreen = () => {
     defaultValues: {
       name: user?.name || '',
       bio: user?.bio ?? '',
-      upiId: user?.upiId ?? '', // 🚨 Pre-fill if exists
+      upiId: user?.upiId ?? '', // Pre-fill if exists
     },
   });
 
@@ -188,7 +188,7 @@ const EditProfileScreen = () => {
               )}
             </View>
 
-            {/* 🚨 UPI ID SECTION */}
+            {/* UPI ID SECTION */}
             <View style={styles.inputGroup}>
               <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
                 <Text style={[styles.label, { color: theme.textPrimary }]}>

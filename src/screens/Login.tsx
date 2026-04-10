@@ -27,7 +27,6 @@ const LoginScreen = () => {
   const [otpSent, setOtpSent] = useState(false);
   const [pin, setPin] = useState('');
   const [name, setName] = useState('');
-  // 🚨 NEW: Added UPI ID state
   const [upiId, setUpiId] = useState(''); 
   const [loading, setLoading] = useState(false);
   const [initialChecking, setInitialChecking] = useState(true);
@@ -93,7 +92,7 @@ const LoginScreen = () => {
       } else {
         setUser(null);
         setName('');
-        setUpiId(''); // Clear just in case
+        setUpiId(''); 
         setStep('setup');
       }
     } catch (e: any) {
@@ -103,6 +102,7 @@ const LoginScreen = () => {
     }
   };
 
+  // ---------- PIN UNLOCK ----------
   const handlePinUnlock = async () => {
     const savedPinRaw = await authService.getSavedPin();
     const actualSavedPin = String(savedPinRaw || '').trim();
@@ -116,6 +116,7 @@ const LoginScreen = () => {
     }
   };
 
+  // ---------- SETUP ----------
   const handleSetup = async () => {
     try {
       if (!name.trim() || pin.length < 4) {
@@ -129,7 +130,7 @@ const LoginScreen = () => {
 
       await authService.savePin(pin);
 
-      // 🚨 CRITICAL FIX RESTORED: Protect Returning Users logging into a new device
+      // Protect Returning Users logging into a new device
       if (user?._id) {
         await firestore().collection('users').doc(uid).update({ name: name.trim() });
         setUser({ ...user, name: name.trim() } as any);
@@ -145,7 +146,7 @@ const LoginScreen = () => {
         _id: uid,
         name: name.trim(),
         phoneNumber: phoneNumber || `+91${phone}`, 
-        upiId: cleanUpiId || null, // 🚨 Save the UPI ID!
+        upiId: cleanUpiId || null, // Save the UPI ID!
         currency: 'INR',
         friends: [],
         createdAt: Date.now(),
@@ -164,6 +165,7 @@ const LoginScreen = () => {
     }
   };
 
+  // ---------- RESET FLOW (Forgot PIN or Change User) ----------
   const handleResetFlow = () => {
     logout();
     setOtpSent(false);
@@ -263,7 +265,7 @@ const LoginScreen = () => {
                 onChangeText={setName}
               />
               
-              {/* 🚨 NEW: UPI ID Input shown only for brand new users */}
+              {/* UPI ID Input shown only for brand new users */}
               {!user?.name && (
                 <View>
                   <TextInput

@@ -35,7 +35,6 @@ const GroupDetailScreen = () => {
 
   const { user } = useStore();
   const theme = getCurrentTheme();
-  // 🚨 NEW: Bring in the selection context!
   const { setSelectionCallback } = useSelection();
   
   const currentUserId = (user as any)?.uid || user?._id;

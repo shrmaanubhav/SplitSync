@@ -31,7 +31,6 @@ const CreateGroupScreen = () => {
   const [selectedUsers, setSelectedUsers] = useState<SelectedUser[]>([]);
   const [loading, setLoading] = useState(false);
 
-  // 🛡️ Fixed Navigation Type to allow .replace()
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const { user } = useStore();
   const theme = getCurrentTheme();
@@ -40,8 +39,7 @@ const CreateGroupScreen = () => {
   const currentUserId = user?._id;
 
   const handleAddMembers = () => {
-    // 1. Set what should happen when the user hits "Done" on the Select screen
-    // 🚨 THE FIX: Add "() =>" before your function so React saves it instead of running it!
+    // 1. Set the callback that will receive the selected users from the SelectPeople screen
     setSelectionCallback(() => (users: SelectedUser[]) => {
       setSelectedUsers(users || []);
     });
@@ -55,7 +53,7 @@ const CreateGroupScreen = () => {
   };
 
   const handleRemoveMember = (idToRemove: string) => {
-    // 🛡️ Defensive fallback before filtering
+    // Defensive fallback before filtering
     setSelectedUsers(prev => (prev || []).filter(u => u._id !== idToRemove));
   };
 
@@ -72,7 +70,7 @@ const CreateGroupScreen = () => {
 
     setLoading(true);
 
-    // 🛡️ Defensive fallback before mapping
+    // Defensive fallback before mapping
     const memberIds = Array.from(new Set([currentUserId, ...(selectedUsers || []).map(u => u._id)]));
 
     try {
@@ -149,7 +147,7 @@ const CreateGroupScreen = () => {
               <Text style={[styles.memberName, { color: theme.textPrimary }]} numberOfLines={1}>You</Text>
             </View>
 
-            {/* Selected Friends - 🛡️ Defensive fallback before mapping */}
+            {/* Selected Friends - Defensive fallback before mapping */}
             {(selectedUsers || []).map((u) => (
               <View key={u._id} style={styles.memberAvatarContainer}>
                 <TouchableOpacity 

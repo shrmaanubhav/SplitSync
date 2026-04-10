@@ -19,7 +19,7 @@ import Screen from '../components/Screen';
 import ExpenseSplitSelector from '../components/ExpenseSplitSelector';
 import { expenseService } from '../services/expense.service';
 
-// Add this interface so TypeScript knows what a fetched user looks like
+// interface for our hydrated members (with real names)
 interface FetchedMember {
   _id: string;
   name: string;
@@ -36,7 +36,7 @@ const AddExpenseScreen = () => {
   const currentUserId = user?._id || '';
 
   const [group, setGroup] = useState<any>(null);
-  // 🚨 NEW STATE: We will store the hydrated user objects here
+  // We will store the hydrated user objects here
   const [hydratedMembers, setHydratedMembers] = useState<FetchedMember[]>([]); 
   const [fetchingMembers, setFetchingMembers] = useState(false);
 
@@ -152,7 +152,7 @@ const AddExpenseScreen = () => {
   }
 
   // ---------- HELPER ----------
-  // 🚨 FIXED: Now it looks up the name from our hydrated array!
+  // fetch the real name of a member by their ID (for displaying in the UI)
   const getMemberName = (memberId: string) => {
     if (memberId === currentUserId) return 'You';
     const memberObj = hydratedMembers.find(m => m._id === memberId);
@@ -206,7 +206,6 @@ const AddExpenseScreen = () => {
 
           {showPayerDropdown && (
             <View style={[styles.dropdownList, { backgroundColor: theme.cardBackground, borderColor: theme.border }]}>
-              {/* 🚨 FIXED: Map over the hydrated members list! */}
               {hydratedMembers.map((member) => (
                 <TouchableOpacity
                   key={member._id}
@@ -241,7 +240,6 @@ const AddExpenseScreen = () => {
 
           {showSplit && (
             <ExpenseSplitSelector
-              // 🚨 FIXED: Pass the real names to the split selector!
               groupMembers={hydratedMembers.map((m) => ({ 
                 id: m._id, 
                 name: getMemberName(m._id) 

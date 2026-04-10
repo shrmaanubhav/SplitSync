@@ -122,7 +122,7 @@ const FriendsScreen = () => {
   const handleAddFriend = async (targetUid: string, contactName: string) => {
     if (!user?._id) return;
     try {
-      // 🚨 Best Practice: Use a batch write to make friendship mutual instantly
+      // Add each other as friends in a batch to ensure atomicity
       const batch = firestore().batch();
       
       const currentUserRef = firestore().collection('users').doc(user._id);

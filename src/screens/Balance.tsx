@@ -22,10 +22,11 @@ const BalancesScreen = () => {
   const { user } = useStore();
   const theme = getCurrentTheme();
 
+  // ---------- FETCH BALANCES ----------
   const fetchBalances = async () => {
     try {
       if (!user) return;
-
+      // First, fetch all groups to find which ones the user is a member of
       const groupsSnap = await firestore().collection('groups').get();
 
       let overall = 0;
@@ -39,12 +40,14 @@ const BalancesScreen = () => {
 
         if (!groupData.members?.includes(currentUserId)) continue;
 
+        // For each group, fetch its expenses to calculate the balance
         const expSnap = await firestore()
           .collection('groups')
           .doc(groupId)
           .collection('expenses')
           .get();
 
+        // Map expenses to the format expected by our balance calculation function
         const expenses = expSnap.docs.map(doc => {
           const data = doc.data();
           return {
@@ -77,12 +80,14 @@ const BalancesScreen = () => {
     }
   };
 
+  // refetch on each revisit to this screen, in case there were changes
   useFocusEffect(
     useCallback(() => {
       fetchBalances();
     }, [user]) 
   );
 
+  // pull to refresh handler
   const onRefresh = async () => {
     setRefreshing(true);
     await fetchBalances();

@@ -32,7 +32,7 @@ const DashboardScreen: React.FC = () => {
     if (!currentUserId) return;
 
     try {
-      // 1. Fetch only the groups this user is a part of
+      // 1. Fetch only the groups current user is a part of
       const groupsSnap = await firestore()
         .collection('groups')
         .where('members', 'array-contains', currentUserId)
