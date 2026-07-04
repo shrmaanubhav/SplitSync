@@ -7,19 +7,48 @@ let confirmationResult: FirebaseAuthTypes.ConfirmationResult | null = null;
 export const authService = {
   // ---------- PHONE AUTH ----------
 
-  async sendOTP(phoneNumber: string) {
+  // async sendOTP(phoneNumber: string) {
+  //   try {
+  //     const formatted = phoneNumber.startsWith('+')
+  //       ? phoneNumber
+  //       : `+91${phoneNumber.replace(/^0+/, '')}`;
+
+  //     confirmationResult = await auth().signInWithPhoneNumber(formatted);
+  //     return true;
+  //   } catch (error: any) {
+  //     throw new Error(error.message || 'Failed to send OTP');
+  //   }
+  // },
+    async sendOTP(phoneNumber: string) {
     try {
       const formatted = phoneNumber.startsWith('+')
         ? phoneNumber
         : `+91${phoneNumber.replace(/^0+/, '')}`;
 
+      console.log('========== OTP DEBUG ==========');
+      console.log('Original:', phoneNumber);
+      console.log('Formatted:', formatted);
+
       confirmationResult = await auth().signInWithPhoneNumber(formatted);
+
+      console.log('Firebase returned confirmation object');
+      console.log('================================');
+
       return true;
     } catch (error: any) {
-      throw new Error(error.message || 'Failed to send OTP');
+      console.log('========== FIREBASE OTP ERROR ==========');
+      console.log('Code:', error?.code);
+      console.log('Message:', error?.message);
+      console.log('Full Error:', JSON.stringify(error, null, 2));
+      console.log('========================================');
+
+      throw new Error(
+        `${error?.code || 'unknown'}: ${
+          error?.message || 'Failed to send OTP'
+        }`
+      );
     }
   },
-
   async verifyOTP(otp: string) {
     try {
       if (!confirmationResult) {
