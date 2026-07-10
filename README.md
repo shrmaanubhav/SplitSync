@@ -1,79 +1,291 @@
-This is a new [**React Native**](https://reactnative.dev) project, bootstrapped using [`@react-native-community/cli`](https://github.com/react-native-community/cli).
+# SplitSync
 
-# Getting Started
+> A modern **React Native expense splitting application** powered by **Firebase Authentication** and **Cloud Firestore**, with built-in **UPI payment integration** for seamless expense settlement.
 
->**Note**: Make sure you have completed the [React Native - Environment Setup](https://reactnative.dev/docs/environment-setup) instructions till "Creating a new application" step, before proceeding.
+## Overview
 
-## Step 1: Start the Metro Server
+SplitSync is a Splitwise-inspired Android application built using **React Native** and **TypeScript**. It allows users to create groups, split expenses, track balances, and settle payments through any installed UPI application.
 
-First, you will need to start **Metro**, the JavaScript _bundler_ that ships _with_ React Native.
+Unlike traditional expense trackers, SplitSync uses **Firebase Authentication** for OTP-based login and **Cloud Firestore** for real-time synchronization, ensuring every participant always has the latest balances without requiring a custom backend.
 
-To start Metro, run the following command from the _root_ of your React Native project:
+---
+
+## Features
+
+### Authentication
+- Phone number login using Firebase Authentication
+- OTP verification
+- Persistent login sessions
+- Automatic user profile creation
+
+### Expense Management
+- Create individual and group expenses
+- Equal expense splitting
+- Automatic balance calculations
+- Real-time synchronization
+
+### Groups
+- Create groups
+- Add participants
+- Shared expense tracking
+- Individual balance summaries
+
+### Payments
+- One-click UPI payments
+- Android UPI Deep Link integration
+- Supports Google Pay, PhonePe, Paytm, BHIM and any compatible UPI app
+
+### Dashboard
+- Total balance overview
+- "You Owe" summary
+- "You Are Owed" summary
+- Expense history
+- Group history
+
+---
+
+# Tech Stack
+
+| Category | Technology |
+|----------|------------|
+| Mobile | React Native, TypeScript |
+| Navigation | React Navigation |
+| Backend | Firebase Authentication, Cloud Firestore |
+| Platform | Android |
+| Payments | Android UPI Deep Links |
+
+---
+
+# Project Structure
+
+```text
+SplitSync/
+│
+├── android/
+├── ios/
+├── src/
+│   ├── assets/
+│   ├── components/
+│   ├── constants/
+│   ├── hooks/
+│   ├── navigation/
+│   ├── screens/
+│   ├── services/
+│   └── utils/
+│
+├── App.tsx
+├── package.json
+└── firebase.json
+```
+
+---
+
+# System Architecture
+
+```text
+                   Firebase Authentication
+                            │
+                      Phone OTP Login
+                            │
+                            ▼
+                     React Native App
+                     /               \
+                    ▼                 ▼
+          Cloud Firestore       UPI Deep Links
+                 │                    │
+                 ▼                    ▼
+         Real-time Sync        Installed UPI Apps
+```
+
+---
+
+# Authentication Flow
+
+```text
+User
+ │
+ ▼
+Enter Phone Number
+ │
+ ▼
+Receive OTP
+ │
+ ▼
+Firebase Verification
+ │
+ ▼
+Authenticated
+ │
+ ▼
+Create / Load Firestore Profile
+```
+
+---
+
+# Expense Flow
+
+```text
+Create Expense
+      │
+      ▼
+Select Members
+      │
+      ▼
+Split Amount
+      │
+      ▼
+Save to Firestore
+      │
+      ▼
+Realtime Balance Updates
+```
+
+---
+
+# Firestore Schema
+
+```text
+users/
+    uid/
+        name
+        phone
+
+groups/
+    groupId/
+        name
+        members[]
+        createdBy
+
+expenses/
+    expenseId/
+        amount
+        paidBy
+        participants[]
+        groupId
+        description
+        timestamp
+
+balances/
+    userId/
+        owes{}
+        owed{}
+```
+
+---
+
+# Prerequisites
+
+- Node.js 18+
+- npm
+- React Native CLI
+- Android Studio
+- Java 17
+- Firebase Project
+
+---
+
+# Firebase Setup
+
+1. Create a Firebase project.
+2. Enable **Phone Authentication**.
+3. Enable **Cloud Firestore**.
+4. Download `google-services.json`.
+5. Place it inside:
+
+```text
+android/app/google-services.json
+```
+
+6. Add SHA-1 and SHA-256 fingerprints.
+7. Sync Gradle and rebuild the project.
+
+---
+
+# Installation
+
+Clone the repository:
 
 ```bash
-# using npm
+git clone https://github.com/<your-username>/SplitSync.git
+cd SplitSync
+```
+
+Install dependencies:
+
+```bash
+npm install
+```
+
+Start Metro:
+
+```bash
 npm start
-
-# OR using Yarn
-yarn start
 ```
 
-## Step 2: Start your Application
-
-Let Metro Bundler run in its _own_ terminal. Open a _new_ terminal from the _root_ of your React Native project. Run the following command to start your _Android_ or _iOS_ app:
-
-### For Android
+Run on Android:
 
 ```bash
-# using npm
 npm run android
-
-# OR using Yarn
-yarn android
 ```
 
-### For iOS
+---
+
+# Building a Release APK
 
 ```bash
-# using npm
-npm run ios
-
-# OR using Yarn
-yarn ios
+cd android
+./gradlew assembleRelease
 ```
 
-If everything is set up _correctly_, you should see your new app running in your _Android Emulator_ or _iOS Simulator_ shortly provided you have set up your emulator/simulator correctly.
+Generated APK:
 
-This is one way to run your app — you can also run it directly from within Android Studio and Xcode respectively.
+```text
+android/app/build/outputs/apk/release/app-release.apk
+```
 
-## Step 3: Modifying your App
+---
 
-Now that you have successfully run the app, let's modify it.
+# UPI Integration
 
-1. Open `App.tsx` in your text editor of choice and edit some lines.
-2. For **Android**: Press the <kbd>R</kbd> key twice or select **"Reload"** from the **Developer Menu** (<kbd>Ctrl</kbd> + <kbd>M</kbd> (on Window and Linux) or <kbd>Cmd ⌘</kbd> + <kbd>M</kbd> (on macOS)) to see your changes!
+SplitSync launches installed UPI applications using Android UPI Deep Links.
 
-   For **iOS**: Hit <kbd>Cmd ⌘</kbd> + <kbd>R</kbd> in your iOS Simulator to reload the app and see your changes!
+Example:
 
-## Congratulations! :tada:
+```text
+upi://pay?pa=<upi_id>&pn=<receiver>&am=<amount>&tn=<note>
+```
 
-You've successfully run and modified your React Native App. :partying_face:
+---
 
-### Now what?
+# Current Limitations
 
-- If you want to add this new React Native code to an existing application, check out the [Integration guide](https://reactnative.dev/docs/integration-with-existing-apps).
-- If you're curious to learn more about React Native, check out the [Introduction to React Native](https://reactnative.dev/docs/getting-started).
+- Android only
+- No payment verification after UPI completion
+- No offline mode
+- No custom backend
 
-# Troubleshooting
+---
 
-If you can't get this to work, see the [Troubleshooting](https://reactnative.dev/docs/troubleshooting) page.
+# Future Improvements
 
-# Learn More
+- Expense categories
+- Receipt OCR
+- Monthly analytics
+- Push notifications
+- iOS support
+- Payment verification backend
 
-To learn more about React Native, take a look at the following resources:
 
-- [React Native Website](https://reactnative.dev) - learn more about React Native.
-- [Getting Started](https://reactnative.dev/docs/environment-setup) - an **overview** of React Native and how setup your environment.
-- [Learn the Basics](https://reactnative.dev/docs/getting-started) - a **guided tour** of the React Native **basics**.
-- [Blog](https://reactnative.dev/blog) - read the latest official React Native **Blog** posts.
-- [`@facebook/react-native`](https://github.com/facebook/react-native) - the Open Source; GitHub **repository** for React Native.
+---
+
+# License
+
+MIT License
+
+---
+
+# Author
+
+**Anubhav Sharma**
+
+GitHub: https://github.com/shrmaanubhav
